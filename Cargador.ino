@@ -23,21 +23,22 @@ int pinRegulacionCargador = 9;    //Salida que activa la onda cuadrada
 
 //              DEFINICION TIPOS CARGA
 const int TARIFAVALLE = 0;
-const int FRAJAHORARIA = 1;
+const int FRANJAHORARIA = 1;
 const int INMEDIATA = 2;
 const int POTENCIA = 3;
-const int FRAJATIEMPO = 4;
+const int FRANJATIEMPO = 4;
 const int EXCEDENTESFV = 5;
 const int INTELIGENTE = 6;
 
 //              DEFINICION VARIABLES GLOBALES
-int horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, horaFinCarga, minutoFinCarga, generacionMinima, tipoCarga;
+int horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, horaFinCarga, minutoFinCarga, generacionMinima, tipoCarga, valorTipoCarga;
 bool cargadorEnConsumoGeneral, conSensorGeneral, conFV, inicioCargaActivado;
-unsigned long kwTotales;
+unsigned long kwTotales, watiosCargados;
 int duracionPulso, tensionCargador, acumTensionCargador = 0, numTensionAcum = 0, numCiclos = 0;
-bool permisoCarga, conectado, cargando, cargaCompleta, cargaIncompleta;
+bool permisoCarga, conectado, cargando, cargaCompleta, generacionSuficiente;
 int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 int consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
+long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoSesionActual, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente;
 
 // VARIABLES PARA EL RELOJ RTC ---------------
 RTC_DS3231 rtc;
@@ -74,7 +75,9 @@ void setup() {
   generacionMinima = EEPROM.read(8);
   conFV = EEPROM.read(9);
   tipoCarga = EEPROM.read(10);
-  kwTotales = EEPROMReadlong(11); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 12, 13 y 14.
+  valorTipoCarga = EEPROM.read(11);
+  inicioCargaActivado = EEPROM.read(12);
+  kwTotales = EEPROMReadlong(13); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 14, 15 y 16.
 
   lcd.begin(16, 2);
   lcd.backlight();
@@ -99,6 +102,10 @@ void setup() {
     EEPROM.write(7, conSensorGeneral);
     conFV = false;
     EEPROM.write(9, conFV);
+    valorTipoCarga = 0;
+    EEPROM.write(11, valorTipoCarga);
+    inicioCargaActivado = false;
+    EEPROM.write(12, inicioCargaActivado);
   }
   if (generacionMinima > 100) {
     generacionMinima = 0;
@@ -127,16 +134,17 @@ void setup() {
     minutoFinCarga = 0;
     EEPROM.write(5, minutoFinCarga); //Si el valor es erroneo lo ponemos a 0
   }
-  if (tipoCarga > 3){
+  if (tipoCarga > 6){
     tipoCarga = 0;
     EEPROM.write(10, tipoCarga); //Si el valor es erroneo lo ponemos a 0
   }
+  
   if (kwTotales > 4000000000) {
     kwTotales = 0;
-    EEPROM.write(11, 0);//Si el valor es erroneo  reseteamos el valor de los KW acumulados
-    EEPROM.write(12, 0);
-    EEPROM.write(13, 0);
+    EEPROM.write(13, 0);//Si el valor es erroneo  reseteamos el valor de los KW acumulados
     EEPROM.write(14, 0);
+    EEPROM.write(15, 0);
+    EEPROM.write(16, 0);
   }
   
   Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda
@@ -218,40 +226,133 @@ void loop() {
     conectado = (tensionCargador < 660);
     cargando = (tensionCargador < 600);
     DateTime time = rtc.now();
+    int horaNow = time.hour();
+    int minutoNow = time.minute();
     if (conectado && inicioCargaActivado){
-      if (!cargando && !cargaCompleta && !cargaIncompleta){
+      if (!cargando && !cargaCompleta){
         bool puedeCargar = false;
         switch(tipoCarga){
           case TARIFAVALLE:
+            if (horaNow >= 23 || horaNow < 6){
+              puedeCargar = true;
+            }
             break;
-          case FRAJAHORARIA:
+          case FRANJAHORARIA:
             if (horaInicioCarga > 0 || minutoInicioCarga > 0){
-              if (horaInicioCarga >= time.hour() && minutoInicioCarga >= time.minute()){
-                puedeCargar = true;
+              if (horaInicioCarga > horaNow){
+                if (horaNow < horaFinCarga || (horaNow == horaFinCarga && minutoNow < minutoFinCarga)) puedeCargar = true;
+              }else if (horaInicioCarga == horaNow && minutoInicioCarga >= minutoNow){
+                  puedeCargar = true;
+              }else if(horaFinCarga < horaInicioCarga){
+                if (horaFinCarga > horaNow || (horaFinCarga == horaNow && minutoInicioCarga > minutoNow)) puedeCargar = true;
               }
             }
             break;
-        
+          case POTENCIA:
+          case FRANJATIEMPO:
+          case INMEDIATA:
+            puedeCargar = true;
+            break;
+          case EXCEDENTESFV:
+            {
+              unsigned long currentMillis = millis();
+              if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
+              if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
+              
+              generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+              
+              if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
+                tiempoNoGeneraSuficiente = currentMillis;        // comenzamos a controlar el tiempo durante el que no hay excedentes ....
+                if (currentMillis - tiempoGeneraSuficiente > 120000) puedeCargar = false;   // Si hay excedentes durante más de 2 minutos activamos la carga
+              }
+            }
+            break;
         }
         if (puedeCargar && permisoCarga){
           cargaCompleta = true;
-          puedeCargar = false;
-        }
-        if (puedeCargar)duracionPulso = CalcularDuracionPulso();
-        permisoCarga = puedeCargar;
-      }else if (cargando){
-        if (horaFinCarga == time.hour() && minutoFinCarga == time.minute()){
           permisoCarga = false;
           inicioCargaActivado = false;
-          cargaIncompleta = true;
+          tiempoInicioSesion = 0;
+        }
+        if (puedeCargar) duracionPulso = CalcularDuracionPulso();
+        permisoCarga = puedeCargar;
+      }else if (cargando){
+        CalcularPotencias();
+        switch(tipoCarga){
+          case TARIFAVALLE:
+            if (horaNow >= 6){
+              cargaCompleta = true;
+              permisoCarga = false;
+              inicioCargaActivado = false;
+              tiempoInicioSesion = 0;
+            }
+            break;
+          case FRANJAHORARIA:
+            if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
+              permisoCarga = false;
+              inicioCargaActivado = false;
+              cargaCompleta = true;
+              tiempoInicioSesion = 0;
+            }
+            break;
+          case POTENCIA:
+            if (watiosCargados >= (valorTipoCarga * 100)){
+              permisoCarga = false;
+              inicioCargaActivado = false;
+              cargaCompleta = true;
+              tiempoInicioSesion = 0;
+            }
+            break;
+          case FRANJATIEMPO:
+            {
+              long tiempoCarga = millis() - tiempoInicioSesion;
+              long valor = valorTipoCarga * 3600000;
+              if (tiempoCarga >= valor){
+                permisoCarga = false;
+                inicioCargaActivado = false;
+                cargaCompleta = true;
+                tiempoInicioSesion = 0;
+              }
+            }
+            break;
+          case EXCEDENTESFV:
+            generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+            
+            if (!generacionSuficiente){                // Si NO hay excedentes sufucientes ....
+              unsigned long currentMillis = millis();
+              tiempoGeneraSuficiente = currentMillis;         // comenzamos a controlar el tiempo durante el que hay excedentes ....
+              if (currentMillis - tiempoNoGeneraSuficiente > 120000) permisoCarga = false; // Si no hay excedentes durante más de 2 minutos desactivamos la carga
+            }
+            break;
         }
       }
     }else if (!conectado && inicioCargaActivado){
       cargaCompleta = false;
       permisoCarga = false;
-      cargaIncompleta = false;
       inicioCargaActivado = false;
+      tiempoInicioSesion = 0;
     }
+  }
+}
+
+void CalcularPotencias(){
+  unsigned long currentMillis = millis();
+  if (tiempoInicioSesion == 0) {
+    tiempoInicioSesion = currentMillis;    // Al comienzo de la sesión de carga comenzamos a contar el tiempo para saber cuanto tiempo llevamos ....
+    watiosCargados = 0;            // y reseteamos el contador de watios cargados
+  }
+
+  unsigned long tiempoCalculoWatios = currentMillis - tiempoCalculoPotenciaCargada;  // Evaluamos el tiempo para el cálculo de watios cargados ....
+  if (tiempoCalculoWatios > 12000) {                    // si llevamos más de 12 seg ....
+    tiempoCalculoWatios = currentMillis;              // lo reseteamos
+    tiempoCalculoWatios = 0;
+  }
+  
+  if (tiempoCalculoWatios > 3000) {                   // Si llevamos más de 3 seg vamos sumando ...
+    tiempoSesionActual = currentMillis - tiempoInicioSesion;
+    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 24500l) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
+    kwTotales = kwTotales + ((consumoCargadorAmperios * 24500l) / (3600000l / tiempoCalculoWatios));
+    tiempoCalculoPotenciaCargada = currentMillis;  // Si no estamos cargando reseteamos el tiempo de cálculo de la energía cargada
   }
 }
 
