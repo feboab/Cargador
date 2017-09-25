@@ -92,7 +92,7 @@ void setup() {
   Serial.begin(9600);
 
   if (!rtc.begin()) {
-    Serial.println(F("Couldn't find RTC"));
+    Serial.println(F("SIN CONEX. RELOJ"));
     while (1);
   }
   
@@ -165,9 +165,9 @@ void setup() {
   enPantallaNumero = 0;
   
   lcd.setCursor(0, 0);
-  lcd.print("   POLICHARGER  ");
+  lcd.print("   WALLBOX FEBOAB  ");
   lcd.setCursor(0, 1);
-  lcd.print("**** V4.00 *****");
+  lcd.print("**** V0.10 *****");
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
 }
@@ -186,7 +186,7 @@ void RetPulsos() {
 void loop() {
   int tension = analogRead(pinTensionCargador);
 
-  if (tension > 0){
+  if (tension > 100){
     acumTensionCargador += tension;
     numTensionAcum++;
   }
@@ -236,6 +236,7 @@ void loop() {
     conectado = (tensionCargador < 660);
     cargando = (tensionCargador < 600);
     DateTime time = rtc.now();
+    int monthNow = time.month();
     int horaNow = time.hour();
     int minutoNow = time.minute();
     if (conectado && inicioCargaActivado){
@@ -243,7 +244,7 @@ void loop() {
         bool puedeCargar = false;
         switch(tipoCarga){
           case TARIFAVALLE:
-            if (horaNow >= 23 || horaNow < 12){
+            if (horaNow >= 23 || horaNow < 13){
               puedeCargar = true;
             }
             break;
@@ -263,7 +264,7 @@ void loop() {
                 tipoCargaInteligente = EXCEDENTESFV;
                 puedeCargar = true;
               }else if (conTarifaValle){
-                if (horaNow >= 23 || horaNow < 6){
+                if (horaNow >= 23 || horaNow < 13){
                   tipoCargaInteligente = TARIFAVALLE;
                   puedeCargar = true;
                 }
@@ -622,9 +623,9 @@ int CalcularDuracionPulso(){
   int pulso;
   int consumo = ObtenerConsumoRestante();
   if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la potencia programada y tenemos el sensor general conectado..
-    pulso = ((consumo * 100 / 6) - 37);          // calculamos la duración del pulso en función de la intensidad restante
+    pulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
   }else{
-    pulso = ((intensidadProgramada * 100 / 6) - 37);
+    pulso = ((intensidadProgramada * 100 / 6) - 28);
   }
   if (pulso < 72) pulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   return pulso;
