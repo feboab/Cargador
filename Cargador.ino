@@ -44,6 +44,7 @@ bool permisoCarga, conectado, cargando, cargaCompleta, generacionSuficiente, luz
 int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 int consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
 long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
+bool horarioInvierno;
 
 // VARIABLES PARA EL RELOJ RTC ---------------
 RTC_DS3231 rtc;
@@ -237,6 +238,7 @@ void loop() {
     cargando = (tensionCargador < 600);
     DateTime time = rtc.now();
     int monthNow = time.month();
+    int dayNow = time.day();
     int horaNow = time.hour();
     int minutoNow = time.minute();
     if (conectado && inicioCargaActivado){
