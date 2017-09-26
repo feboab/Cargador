@@ -40,11 +40,13 @@ int horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, h
 bool cargadorEnConsumoGeneral, conSensorGeneral, conFV, inicioCargaActivado, conTarifaValle;
 unsigned long kwTotales, watiosCargados;
 int duracionPulso, tensionCargador, acumTensionCargador = 0, numTensionAcum = 0, numCiclos = 0, enPantallaNumero, opcionNumero;
-bool permisoCarga, conectado, cargando, cargaCompleta, generacionSuficiente, luzLcd;
+bool permisoCarga, conectado, cargando, cargaCompleta, generacionSuficiente, luzLcd, horarioVeranoChecked, horarioVerano;
 int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 int consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
 long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
-bool horarioInvierno;
+int nuevaHora, nuevoMinuto, nuevoAnno, nuevoMes, nuevoDia;
+
+const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
 // VARIABLES PARA EL RELOJ RTC ---------------
 RTC_DS3231 rtc;
@@ -164,9 +166,10 @@ void setup() {
   permisoCarga = false;
   conectado = false;
   enPantallaNumero = 0;
+  horarioVeranoChecked = false;
   
   lcd.setCursor(0, 0);
-  lcd.print("   WALLBOX FEBOAB  ");
+  lcd.print(" WALLBOX FEBOAB ");
   lcd.setCursor(0, 1);
   lcd.print("**** V0.10 *****");
   delay(1500);
@@ -236,18 +239,26 @@ void loop() {
     }
     conectado = (tensionCargador < 660);
     cargando = (tensionCargador < 600);
-    DateTime time = rtc.now();
-    int monthNow = time.month();
-    int dayNow = time.day();
-    int horaNow = time.hour();
-    int minutoNow = time.minute();
+    DateTime timeNow = rtc.now();
+    int horaNow = timeNow.hour();
+    int minutoNow = timeNow.minute();
+    if (!horarioVeranoChecked){
+      horarioVerano = EsHorarioVerano(timeNow.year(), timeNow.day(), timeNow.month());
+      horarioVeranoChecked = true;
+    }
     if (conectado && inicioCargaActivado){
       if (!cargando && !cargaCompleta){
         bool puedeCargar = false;
         switch(tipoCarga){
           case TARIFAVALLE:
-            if (horaNow >= 23 || horaNow < 13){
-              puedeCargar = true;
+            if (horarioVerano){
+              if (horaNow >= 23 || horaNow < 13){
+                puedeCargar = true;
+              }
+            }else{
+              if (horaNow >= 22 || horaNow < 12){
+                puedeCargar = true;
+              }
             }
             break;
           case FRANJAHORARIA:
@@ -266,9 +277,16 @@ void loop() {
                 tipoCargaInteligente = EXCEDENTESFV;
                 puedeCargar = true;
               }else if (conTarifaValle){
-                if (horaNow >= 23 || horaNow < 13){
-                  tipoCargaInteligente = TARIFAVALLE;
-                  puedeCargar = true;
+                if (horarioVerano){
+                  if (horaNow >= 23 || horaNow < 13){
+                    tipoCargaInteligente = TARIFAVALLE;
+                    puedeCargar = true;
+                  }
+                }else{
+                  if (horaNow >= 22 || horaNow < 12){
+                    tipoCargaInteligente = TARIFAVALLE;
+                    puedeCargar = true;
+                  }
                 }
               }else if (EnFranjaHoraria(horaNow, minutoNow)){
                 tipoCargaInteligente = FRANJAHORARIA;
@@ -277,11 +295,7 @@ void loop() {
             break;
         }
         if (puedeCargar && permisoCarga){
-          digitalWrite(pinAlimentacionCargador, LOW);
-          cargaCompleta = true;
-          permisoCarga = false;
-          inicioCargaActivado = false;
-          tiempoInicioSesion = 0;
+          FinalizarCarga();
         }
         if (puedeCargar){
           digitalWrite(pinAlimentacionCargador, HIGH);
@@ -292,30 +306,18 @@ void loop() {
         CalcularPotencias();
         switch(tipoCarga){
           case TARIFAVALLE:
-            if (horaNow >= 12){
-              cargaCompleta = true;
-              permisoCarga = false;
-              inicioCargaActivado = false;
-              tiempoInicioSesion = 0;
-              digitalWrite(pinAlimentacionCargador, LOW);
+            if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
+              FinalizarCarga();
             }
             break;
           case FRANJAHORARIA:
             if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
-              permisoCarga = false;
-              inicioCargaActivado = false;
-              cargaCompleta = true;
-              tiempoInicioSesion = 0;
-              digitalWrite(pinAlimentacionCargador, LOW);
+              FinalizarCarga();
             }
             break;
           case POTENCIA:
             if (watiosCargados >= (valorTipoCarga * 100)){
-              permisoCarga = false;
-              inicioCargaActivado = false;
-              cargaCompleta = true;
-              tiempoInicioSesion = 0;
-              digitalWrite(pinAlimentacionCargador, LOW);
+              FinalizarCarga();
             }
             break;
           case FRANJATIEMPO:
@@ -323,11 +325,7 @@ void loop() {
               long tiempoCarga = millis() - tiempoInicioSesion;
               long valor = valorTipoCarga * 60000;
               if (tiempoCarga >= valor){
-                permisoCarga = false;
-                inicioCargaActivado = false;
-                cargaCompleta = true;
-                tiempoInicioSesion = 0;
-                digitalWrite(pinAlimentacionCargador, LOW);
+                FinalizarCarga();
               }
             }
             break;
@@ -340,21 +338,13 @@ void loop() {
                 permisoCarga = CheckExcedendesFV();
                 break;
               case TARIFAVALLE:
-                if (horaNow >= 12){
-                  cargaCompleta = true;
-                  permisoCarga = false;
-                  inicioCargaActivado = false;
-                  tiempoInicioSesion = 0;
-                  digitalWrite(pinAlimentacionCargador, LOW);
+                if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
+                  FinalizarCarga();
                 }
                 break;
               case FRANJAHORARIA:
               if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
-                permisoCarga = false;
-                inicioCargaActivado = false;
-                cargaCompleta = true;
-                tiempoInicioSesion = 0;
-                digitalWrite(pinAlimentacionCargador, LOW);
+                FinalizarCarga();
               }
               break;
             }
@@ -362,11 +352,7 @@ void loop() {
         }
       }
     }else if (!conectado && inicioCargaActivado){
-      cargaCompleta = false;
-      permisoCarga = false;
-      inicioCargaActivado = false;
-      tiempoInicioSesion = 0;
-      digitalWrite(pinAlimentacionCargador, LOW);
+      FinalizarCarga();
     }
   }
 
@@ -392,6 +378,47 @@ void ProcesarBoton(int button){
           case BOTONINICIO:
             enPantallaNumero = 10;
             opcionNumero = tipoCarga;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 1;
+            opcionNumero = 0;
+            updateScreen();
+            break;
+        }
+        break;
+      case 1:   //Pantalla selecion configuracion
+        switch (button){
+          case BOTONINICIO:
+            if (opcionNumero == 0){
+              enPantallaNumero = 20;
+            }else if (opcionNumero == 1){
+              enPantallaNumero = 30;
+            }else{
+              DateTime timeTemp  = rtc.now();
+              nuevoAnno = timeTemp.year();
+              if (nuevoAnno < 2015) nuevoAnno = 2015;
+              nuevoMes = timeTemp.month() + 1;
+              nuevoDia = timeTemp.day();
+              nuevaHora = timeTemp.hour();
+              nuevoMinuto = timeTemp.minute();
+              enPantallaNumero = 40;
+            }
+            opcionNumero = 0;
+            updateScreen();
+            break;
+          case BOTONMAS:
+            if (opcionNumero == 2)opcionNumero = 0;
+            else opcionNumero++;
+            updateScreen();
+            break;
+          case BOTONMENOS:
+            if (opcionNumero == 0)opcionNumero = 2;
+            else opcionNumero--;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 0;
             updateScreen();
             break;
         }
@@ -508,6 +535,132 @@ void ProcesarBoton(int button){
             break;
         }
         break;
+      case 40:    // Ajuste del año
+        switch (button){
+          case BOTONINICIO:
+            enPantallaNumero = 41;
+            updateScreen();
+            break;
+          case BOTONMAS:
+            if  (nuevoAnno < 2050) nuevoAnno++;
+            updateScreen();
+            break;
+          case BOTONMENOS:
+            if  (nuevoAnno > 2015) nuevoAnno--;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            opcionNumero = 2;
+            enPantallaNumero = 1;
+            updateScreen();
+            break;
+        }
+        break;
+      case 41:    //Ajuste del mes
+        switch (button){
+          case BOTONINICIO:
+            enPantallaNumero = 42;
+            updateScreen();
+            break;
+          case BOTONMAS:
+            if  (nuevoMes == 12) nuevoMes = 1;
+            else nuevoMes++;
+            updateScreen();
+            break;
+          case BOTONMENOS:
+            if  (nuevoMes == 1) nuevoMes = 12;
+            else nuevoMes--;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            opcionNumero = 2;
+            enPantallaNumero = 1;
+            updateScreen();
+            break;
+        }
+        break;
+      case 42:    //Ajuste del dia
+        switch (button){
+          case BOTONINICIO:
+            enPantallaNumero = 43;
+            updateScreen();
+            break;
+          case BOTONMAS:
+            if  (nuevoDia == daysInMonth[nuevoMes - 1]) nuevoDia = 1;
+            else nuevoDia++;
+            updateScreen();
+            break;
+          case BOTONMENOS:
+            if  (nuevoDia == 1) nuevoDia = daysInMonth[nuevoMes - 1];
+            else nuevoDia--;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            opcionNumero = 2;
+            enPantallaNumero = 1;
+            updateScreen();
+            break;
+        }
+        break;
+      case 43:    //Ajuste de la hora
+        switch (button){
+          case BOTONINICIO:
+            enPantallaNumero = 44;
+            updateScreen();
+            break;
+          case BOTONMAS:
+            if  (nuevaHora == 24) nuevaHora = 1;
+            else nuevaHora++;
+            updateScreen();
+            break;
+          case BOTONMENOS:
+            if  (nuevaHora == 1) nuevaHora = 24;
+            else nuevaHora--;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            opcionNumero = 2;
+            enPantallaNumero = 1;
+            updateScreen();
+            break;
+        }
+        break;
+      case 44:    //Ajuste del los minutos
+        switch (button){
+          case BOTONINICIO:
+            rtc.adjust(DateTime(nuevoAnno, nuevoMes, nuevoDia, nuevaHora, nuevoMinuto, 0));
+            enPantallaNumero = 45;
+            updateScreen();
+            break;
+          case BOTONMAS:
+            if  (nuevoMinuto == 59) nuevoMinuto = 0;
+            else nuevoMinuto++;
+            updateScreen();
+            break;
+          case BOTONMENOS:
+            if  (nuevoMinuto == 0) nuevoMinuto = 59;
+            else nuevoMinuto--;
+            updateScreen();
+            break;
+          case BOTONPROG:
+            opcionNumero = 2;
+            enPantallaNumero = 1;
+            updateScreen();
+            break;
+        }
+        break;
+      case 45:    //Ajuste hora ok
+        switch (button){
+          case BOTONINICIO:
+          case BOTONMAS:
+          case BOTONMENOS:
+          case BOTONPROG:
+            opcionNumero = 2;
+            enPantallaNumero = 1;
+            updateScreen();
+            break;
+        }
+        break;
     }
   }else{    
     luzLcd = true;
@@ -516,10 +669,25 @@ void ProcesarBoton(int button){
 }
 
 void updateScreen(){
+  lcd.clear();
+  lcd.setCursor(0, 0);
   switch(enPantallaNumero){
+    case 1:
+      lcd.print("Opciones:");
+      lcd.setCursor(0, 1);
+      switch (opcionNumero){
+        case 0:
+          lcd.print("Configuracion.");
+          break;
+        case 1:
+          lcd.print("Visualizacion.");
+          break;
+        case 2:
+          lcd.print("PTA En Hora.");
+          break;
+      }
+      break;
     case 10:    // pantalla tipo de carga
-      lcd.clear();
-      lcd.setCursor(0, 0);
       lcd.print("Tipo de Carga:");
       lcd.setCursor(0, 1);
       switch (opcionNumero){
@@ -547,20 +715,86 @@ void updateScreen(){
       }
       break;
     case 11:  // Carga por potencia
-      lcd.clear();
-      lcd.setCursor(0, 0);
       lcd.print("Potencia:");
       lcd.setCursor(0, 1);
       lcd.print(tempValorTipoCarga * 100 + " w");
       break;
     case 12:  // carga por franja de tiempo
-      lcd.clear();
-      lcd.setCursor(0, 0);
       lcd.print("Tiempo:");
       lcd.setCursor(0, 1);
       lcd.print(tempValorTipoCarga + " min");
       break;
+    case 40:
+      lcd.print("Ajuste año:");
+      lcd.setCursor(0, 1);
+      lcd.print(nuevoAnno);
+      break;
+    case 41:
+      lcd.print("Ajuste mes:");
+      lcd.setCursor(0, 1);
+      lcd.print(nuevoMes);
+      break;
+    case 42:
+      lcd.print("Ajuste dia:");
+      lcd.setCursor(0, 1);
+      lcd.print(nuevoDia);
+      break;
+    case 43:
+      lcd.print("Ajuste hora:");
+      lcd.setCursor(0, 1);
+      lcd.print(nuevaHora);
+      break;
+    case 44:
+      {
+        lcd.print("Ajuste min:");
+        String str = (String)nuevoMinuto; // es una prueba a ver si asi lo centra en la pantalla
+        int lenght = str.length();
+        if (lenght == 1){
+          str = "0" + str;
+          lenght = 2;
+        }
+        lenght = 16 - (lenght / 2);
+        lcd.setCursor(lenght, 1);
+        lcd.print(str);
+      }
+      break;
+    case 45:
+      lcd.print("Ajuste");
+      lcd.setCursor(0, 1);
+      lcd.print("Correcto.");
+      break;
   }  
+}
+
+void FinalizarCarga(){
+  digitalWrite(pinAlimentacionCargador, LOW);
+  cargaCompleta = true;
+  permisoCarga = false;
+  inicioCargaActivado = false;
+  tiempoInicioSesion = 0;
+  horarioVeranoChecked = false;
+}
+
+bool EsHorarioVerano(int annoNow, int diaNow, int mesNow){
+  if ((( mesNow > 3 ) && ( mesNow < 10 )))
+  {
+    return true;
+  }else{
+    //el último domingo de Marzo
+    int dhv = getLastSunday(2, annoNow);
+    //el último domingo de Octubre
+    int dhi = getLastSunday(9, annoNow);
+    if ((mesNow == 3  && diaNow >= dhv) || (mesNow==10 && diaNow < dhi)){
+      return true;
+    }
+  }
+  return false;
+}
+
+int getLastSunday(int mes, int anno){
+  DateTime date(anno, mes, daysInMonth[mes], 0, 0, 0);
+  int diaSemana = date.dayOfTheWeek();
+  return daysInMonth[mes] - diaSemana;
 }
 
 bool HayExcedentesFV(){
