@@ -609,12 +609,12 @@ void ProcesarBoton(int button){
             updateScreen();
             break;
           case BOTONMAS:
-            if  (nuevaHora == 24) nuevaHora = 1;
+            if  (nuevaHora == 23) nuevaHora = 0;
             else nuevaHora++;
             updateScreen();
             break;
           case BOTONMENOS:
-            if  (nuevaHora == 1) nuevaHora = 24;
+            if  (nuevaHora == 0) nuevaHora = 23;
             else nuevaHora--;
             updateScreen();
             break;
