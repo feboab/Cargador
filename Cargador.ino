@@ -36,15 +36,15 @@ const int BOTONMENOS = 2;
 const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
-int horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, horaFinCarga, minutoFinCarga, generacionMinima, tipoCarga, tipoCargaInteligente, valorTipoCarga, tempValorInt;
+byte horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, horaFinCarga, minutoFinCarga, generacionMinima, tipoCarga, tipoCargaInteligente;
 bool cargadorEnConsumoGeneral, conSensorGeneral, conFV, inicioCargaActivado, conTarifaValle, tempValorBool;
-unsigned long kwTotales, watiosCargados;
-int duracionPulso, tensionCargador, acumTensionCargador = 0, numTensionAcum = 0, numCiclos = 0, nuevoAnno;
+unsigned long kwTotales, watiosCargados, acumTensionCargador;
+int duracionPulso, tensionCargador, numTensionAcum, numCiclos, nuevoAnno, valorTipoCarga, tempValorInt;
 bool permisoCarga, conectado, conectadoPrev, cargando, cargaCompleta, generacionSuficiente, luzLcd, horarioVerano;
 int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
-int consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
+byte consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
 unsigned long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
-byte lastCheckHour = 0, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia;
+byte lastCheckHour, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia;
 bool flancoBotonInicio, flancoBotonMas, flancoBotonMenos, flancoBotonProg;
 DateTime timeNow;
 
@@ -1366,12 +1366,12 @@ void CalcularPotencias(){
   unsigned long currentMillis = millis();
   if (tiempoInicioSesion == 0) {
     tiempoInicioSesion = currentMillis;    // Al comienzo de la sesión de carga comenzamos a contar el tiempo para saber cuanto tiempo llevamos ....
-    watiosCargados = 0;            // y reseteamos el contador de watios cargados
+    tiempoCalculoPotenciaCargada = currentMillis;
   }
 
   unsigned long tiempoCalculoWatios = currentMillis - tiempoCalculoPotenciaCargada;  // Evaluamos el tiempo para el cálculo de watios cargados ....
   if (tiempoCalculoWatios > 12000) {                    // si llevamos más de 12 seg ....
-    tiempoCalculoWatios = currentMillis;              // lo reseteamos
+    tiempoCalculoPotenciaCargada = currentMillis;              // lo reseteamos
     tiempoCalculoWatios = 0;
   }
   
