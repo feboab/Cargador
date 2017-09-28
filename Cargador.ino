@@ -45,6 +45,7 @@ int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGene
 int consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
 unsigned long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
 byte lastCheckHour = 0, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia;
+bool flancoBotonInicio, flancoBotonMas, flancoBotonMenos, flancoBotonProg;
 DateTime timeNow;
 
 
@@ -374,10 +375,30 @@ void loop() {
     if (enPantallaNumero == 0 && luzLcd) updateScreen();
   }
 
-  if (digitalRead(pinPulsadorInicio) == HIGH) ProcesarBoton(BOTONINICIO);
-  if (digitalRead(pinPulsadorProg) == HIGH) ProcesarBoton(BOTONPROG);
-  if (digitalRead(pinPulsadorMas) == HIGH) ProcesarBoton(BOTONMAS);
-  if (digitalRead(pinPulsadorMenos) == HIGH) ProcesarBoton(BOTONMENOS);
+  if (digitalRead(pinPulsadorInicio) == HIGH) {
+    if (!flancoBotonInicio){
+      ProcesarBoton(BOTONINICIO);
+      flancoBotonInicio = true;
+    }
+  }else flancoBotonInicio = false;
+  if (digitalRead(pinPulsadorProg) == HIGH){
+    if (!flancoBotonProg){
+      ProcesarBoton(BOTONPROG);
+      flancoBotonProg = true;
+    }
+  }else flancoBotonProg = false;
+  if (digitalRead(pinPulsadorMas) == HIGH){
+    if (!flancoBotonMas){
+      ProcesarBoton(BOTONMAS);
+      flancoBotonMas = true;
+    }
+  }else flancoBotonMas = false;
+  if (digitalRead(pinPulsadorMenos) == HIGH){
+    if (!flancoBotonMenos){
+      ProcesarBoton(BOTONMENOS);
+      flancoBotonMenos = true;
+    }
+  }else flancoBotonMenos = false;
   
   if (luzLcd){
     if (millis() - tiempoUltimaPulsacionBoton >= 600000){
@@ -1293,9 +1314,9 @@ bool EsHorarioVerano(DateTime fecha){
     return true;
   }else{
     //el último domingo de Marzo
-    int dhv = daysInMonth[2] - DateTime(fecha.year(), 2, daysInMonth[2], 0, 0, 0).dayOfTheWeek();
+    int dhv = daysInMonth[2] - DateTime(fecha.year(), 2, daysInMonth[2]).dayOfTheWeek();
     //el último domingo de Octubre
-    int dhi = daysInMonth[9] - DateTime(fecha.year(), 9, daysInMonth[9], 0, 0, 0).dayOfTheWeek();
+    int dhi = daysInMonth[9] - DateTime(fecha.year(), 9, daysInMonth[9]).dayOfTheWeek();
     if ((fecha.month() == 2  && fecha.day() >= dhv) || (fecha.month() == 9 && fecha.day() < dhi)){
       return true;
     }
