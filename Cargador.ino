@@ -39,12 +39,14 @@ const int BOTONPROG = 3;
 int horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, horaFinCarga, minutoFinCarga, generacionMinima, tipoCarga, tipoCargaInteligente, valorTipoCarga, tempValorInt;
 bool cargadorEnConsumoGeneral, conSensorGeneral, conFV, inicioCargaActivado, conTarifaValle, tempValorBool;
 unsigned long kwTotales, watiosCargados;
-int duracionPulso, tensionCargador, acumTensionCargador = 0, numTensionAcum = 0, numCiclos = 0, enPantallaNumero, opcionNumero;
-bool permisoCarga, conectado, cargando, cargaCompleta, generacionSuficiente, luzLcd, horarioVeranoChecked, horarioVerano;
+int duracionPulso, tensionCargador, acumTensionCargador = 0, numTensionAcum = 0, numCiclos = 0, nuevoAnno;
+bool permisoCarga, conectado, conectadoPrev, cargando, cargaCompleta, generacionSuficiente, luzLcd, horarioVerano;
 int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 int consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
-long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
-int nuevaHora, nuevoMinuto, nuevoAnno, nuevoMes, nuevoDia;
+unsigned long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
+byte lastCheckHour = 0, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia;
+DateTime timeNow;
+
 
 const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
@@ -166,18 +168,13 @@ void setup() {
   permisoCarga = false;
   conectado = false;
   enPantallaNumero = 0;
-  horarioVeranoChecked = false;
   
   lcd.setCursor(0, 0);
-  showVersion();
-  delay(1500);
-  digitalWrite(pinRegulacionCargador, HIGH);
-}
-
-void showVersion(){
   lcd.print(" WALLBOX FEBOAB ");
   lcd.setCursor(0, 1);
-  lcd.print("**** V 0.10 ****");
+  lcd.print("**** V 1.02 ****");
+  delay(1500);
+  digitalWrite(pinRegulacionCargador, HIGH);
 }
 
  //----RUTINA DE GENERACIÓN DE LA ONDA CUADRADA----
@@ -241,14 +238,24 @@ void loop() {
         generacionFVAmperios = 0;
       }
     }
+    
     conectado = (tensionCargador < 660);
     cargando = (tensionCargador < 600);
-    DateTime timeNow = rtc.now();
+    timeNow = rtc.now();
     int horaNow = timeNow.hour();
     int minutoNow = timeNow.minute();
-    if (!horarioVeranoChecked){
-      horarioVerano = EsHorarioVerano(timeNow.year(), timeNow.day(), timeNow.month());
-      horarioVeranoChecked = true;
+    if (horaNow >= 3 && horaNow > lastCheckHour){
+      lastCheckHour = horaNow;
+      bool tempHorarioVerano = EsHorarioVerano(timeNow);
+      if (horarioVerano && !tempHorarioVerano){
+        horaNow--;
+        horarioVerano = false;
+        rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+      }else if (!horarioVerano && tempHorarioVerano){
+        horaNow++;
+        horarioVerano = true;
+        rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+      }
     }
     if (conectado && inicioCargaActivado){
       if (!cargando && !cargaCompleta){
@@ -355,11 +362,11 @@ void loop() {
             }
             break;
         }
-        if (enPantallaNumero == 0 && luzLcd) updateScreen();
       }
     }else if (!conectado && inicioCargaActivado){
       FinalizarCarga();
     }
+    if (enPantallaNumero == 0 && luzLcd) updateScreen();
   }
 
   if (digitalRead(pinPulsadorInicio) == HIGH) ProcesarBoton(BOTONINICIO);
@@ -371,10 +378,31 @@ void loop() {
     if (millis() - tiempoUltimaPulsacionBoton >= 600000){
       luzLcd = false;
       enPantallaNumero = 0;
-      updateScreen();
       lcd.noBacklight();
+      lcd.clear();
     }
   }
+}
+
+void IniciarCarga(){
+  watiosCargados = 0;
+  inicioCargaActivado = true;
+  enPantallaNumero = 0;
+  EEPROM.write(11, tipoCarga);
+  EEPROM.write(13, inicioCargaActivado);
+}
+
+void FinalizarCarga(){
+  digitalWrite(pinAlimentacionCargador, LOW);
+  cargaCompleta = true;
+  permisoCarga = false;
+  inicioCargaActivado = false;
+  tiempoInicioSesion = 0;                  // Se restan 520 porque la lectura se hace a través de un divisor de tensión
+  consumoCargadorAmperios = 0;
+  consumoGeneralAmperios = 0;
+  generacionFVAmperios = 0;
+  EEPROM.write(13, inicioCargaActivado);
+  EEPROMWritelong(14, kwTotales);
 }
 
 void ProcesarBoton(int button){
@@ -384,8 +412,12 @@ void ProcesarBoton(int button){
       case 0:   // pantalla principal
         switch (button){
           case BOTONINICIO:
-            enPantallaNumero = 2;
-            opcionNumero = tipoCarga;
+            if (inicioCargaActivado){
+              enPantallaNumero = 4;
+            }else{
+              enPantallaNumero = 2;
+              opcionNumero = tipoCarga;
+            }
             break;
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -428,6 +460,7 @@ void ProcesarBoton(int button){
             enPantallaNumero = 0;
             break;
         }
+        updateScreen();
         break;
       case 2:    // seleccion del tipo de carga
         switch (button){
@@ -435,13 +468,11 @@ void ProcesarBoton(int button){
             switch (opcionNumero){
               case TARIFAVALLE:
                 tipoCarga = TARIFAVALLE;
-                inicioCargaActivado = true;
-                enPantallaNumero = 0;
+                IniciarCarga();
                 break;
               case FRANJAHORARIA:
                 tipoCarga = FRANJAHORARIA;
-                inicioCargaActivado = true;
-                enPantallaNumero = 0;
+                IniciarCarga();
                 break;
               case POTENCIA:
                 enPantallaNumero = 20;
@@ -455,23 +486,17 @@ void ProcesarBoton(int button){
                 break;
               case INMEDIATA:
                 tipoCarga = INMEDIATA;
-                inicioCargaActivado = true;
-                enPantallaNumero = 0;
+                IniciarCarga();
                 break;
               case EXCEDENTESFV:
                 tipoCarga = EXCEDENTESFV;
-                inicioCargaActivado = true;
-                enPantallaNumero = 0;
+                IniciarCarga();
                 break;
               case INTELIGENTE:
                 tipoCarga = INTELIGENTE;
-                inicioCargaActivado = true;
-                enPantallaNumero = 0;
+                IniciarCarga();
                 break;
             }
-            EEPROM.write(11, tipoCarga);
-            EEPROM.write(13, inicioCargaActivado);
-            updateScreen();
             break;
           case BOTONMAS:
             if (!conSensorGeneral && opcionNumero == 4)opcionNumero = 0;
@@ -499,6 +524,20 @@ void ProcesarBoton(int button){
             break;
           case BOTONMENOS:
             if (tempValorInt == 6) tempValorInt = 36;
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 0;
+            break;
+        }
+        updateScreen();
+        break;
+      case 4:
+        switch (button){
+          case BOTONINICIO:
+            FinalizarCarga();
+            if (watiosCargados == 0){
+              cargaCompleta = false;
+            }
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -592,11 +631,8 @@ void ProcesarBoton(int button){
           case BOTONINICIO:
             tipoCarga = POTENCIA;
             valorTipoCarga = tempValorInt;
-            inicioCargaActivado = true;
-            EEPROM.write(11, tipoCarga);
+            IniciarCarga();
             EEPROM.write(12, valorTipoCarga);
-            EEPROM.write(13, inicioCargaActivado);
-            enPantallaNumero = 0;
             break;
           case BOTONMAS:
             if (tempValorInt < 50) tempValorInt += 5;
@@ -615,11 +651,8 @@ void ProcesarBoton(int button){
           case BOTONINICIO:
             tipoCarga = FRANJATIEMPO;
             valorTipoCarga = tempValorInt;
-            inicioCargaActivado = true;
-            EEPROM.write(11, tipoCarga);
+            IniciarCarga();
             EEPROM.write(12, valorTipoCarga);
-            EEPROM.write(13, inicioCargaActivado);
-            enPantallaNumero = 0;
             break;
           case BOTONMAS:
             if (tempValorInt < 600) tempValorInt += 30;
@@ -951,13 +984,14 @@ void ProcesarBoton(int button){
           case BOTONPROG:
             opcionNumero = 2;
             enPantallaNumero = 1;
-            updateScreen();
             break;
         }
+        updateScreen();
         break;
     }
   }else{    
     luzLcd = true;
+    updateScreen();
     lcd.backlight();
   }
 }
@@ -1004,7 +1038,13 @@ void updateScreen(){
           lcd.setCursor(0, 1);
           lcd.print(watiosCargados / 100 + "wh");
         }else{
-          showVersion();
+            lcd.setCursor(0, 0);
+            lcd.print(" WALLBOX FEBOAB ");
+            String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
+            hora += ":";
+            hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
+            lcd.setCursor(6, 1);
+            lcd.print(hora);
         }
       }
       break;
@@ -1098,6 +1138,11 @@ void updateScreen(){
           lcd.print(consumoGeneralAmperios + " A");
           break;
       }
+      break;
+    case 4:
+      lcd.print("FINALIZAR CON");
+      lcd.setCursor(0, 1);
+      lcd.print("LA CARGA.");
       break;
     case 11:
       switch (opcionNumero){
@@ -1238,37 +1283,19 @@ void updateScreen(){
   }  
 }
 
-void FinalizarCarga(){
-  digitalWrite(pinAlimentacionCargador, LOW);
-  cargaCompleta = true;
-  permisoCarga = false;
-  inicioCargaActivado = false;
-  tiempoInicioSesion = 0;
-  horarioVeranoChecked = false;
-  EEPROM.write(13, inicioCargaActivado);
-  EEPROMWritelong(14, kwTotales);
-  updateScreen();
-}
-
-bool EsHorarioVerano(int annoNow, int diaNow, int mesNow){
-  if ((( mesNow > 2 ) && ( mesNow < 9 ))) {
+bool EsHorarioVerano(DateTime fecha){
+  if (fecha.month() > 2 && fecha.month() < 9){
     return true;
   }else{
     //el último domingo de Marzo
-    int dhv = getLastSunday(2, annoNow);
+    int dhv = daysInMonth[2] - DateTime(fecha.year(), 2, daysInMonth[2], 0, 0, 0).dayOfTheWeek();
     //el último domingo de Octubre
-    int dhi = getLastSunday(9, annoNow);
-    if ((mesNow == 2  && diaNow >= dhv) || (mesNow == 9 && diaNow < dhi)){
+    int dhi = daysInMonth[9] - DateTime(fecha.year(), 9, daysInMonth[9], 0, 0, 0).dayOfTheWeek();
+    if ((fecha.month() == 2  && fecha.day() >= dhv) || (fecha.month() == 9 && fecha.day() < dhi)){
       return true;
     }
   }
   return false;
-}
-
-int getLastSunday(int mes, int anno){
-  DateTime date(anno, mes, daysInMonth[mes], 0, 0, 0);
-  int diaSemana = date.dayOfTheWeek();
-  return daysInMonth[mes] - diaSemana;
 }
 
 bool HayExcedentesFV(){
