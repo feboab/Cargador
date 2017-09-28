@@ -88,7 +88,8 @@ void setup() {
   tipoCarga = EEPROM.read(11);
   valorTipoCarga = EEPROM.read(12);
   inicioCargaActivado = EEPROM.read(13);
-  kwTotales = EEPROMReadlong(14); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 15, 16 y 17.
+  horarioVerano = EEPROM.read(14);
+  kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 16, 17 y 18.
 
   lcd.begin(16, 2);
   lcd.backlight();
@@ -120,6 +121,8 @@ void setup() {
     EEPROM.write(12, valorTipoCarga);
     inicioCargaActivado = false;
     EEPROM.write(13, inicioCargaActivado);
+    horarioVerano = false;
+    EEPROM.write(14, horarioVerano);
   }
   if (generacionMinima > 100) {
     generacionMinima = 0;
@@ -155,10 +158,10 @@ void setup() {
   
   if (kwTotales > 4000000000) {
     kwTotales = 0;
-    EEPROM.write(14, 0);//Si el valor es erroneo  reseteamos el valor de los KW acumulados
-    EEPROM.write(15, 0);
+    EEPROM.write(15, 0);//Si el valor es erroneo  reseteamos el valor de los KW acumulados
     EEPROM.write(16, 0);
     EEPROM.write(17, 0);
+    EEPROM.write(18, 0);
   }
   
   Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda
@@ -251,10 +254,12 @@ void loop() {
         horaNow--;
         horarioVerano = false;
         rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+        EEPROM.write(14, horarioVerano);
       }else if (!horarioVerano && tempHorarioVerano){
         horaNow++;
         horarioVerano = true;
         rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+        EEPROM.write(14, horarioVerano);
       }
     }
     if (conectado && inicioCargaActivado){
@@ -402,7 +407,7 @@ void FinalizarCarga(){
   consumoGeneralAmperios = 0;
   generacionFVAmperios = 0;
   EEPROM.write(13, inicioCargaActivado);
-  EEPROMWritelong(14, kwTotales);
+  EEPROMWritelong(15, kwTotales);
 }
 
 void ProcesarBoton(int button){
@@ -670,10 +675,10 @@ void ProcesarBoton(int button){
         switch (button){
           case BOTONINICIO:
             kwTotales = 0;
-            EEPROM.write(14, 0);
             EEPROM.write(15, 0);
             EEPROM.write(16, 0);
             EEPROM.write(17, 0);
+            EEPROM.write(18, 0);
             enPantallaNumero = 1;
             break;
           case BOTONPROG:
