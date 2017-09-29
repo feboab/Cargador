@@ -44,7 +44,7 @@ bool permisoCarga, conectado, conectadoPrev, cargando, cargaCompleta, generacion
 int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 byte consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
 unsigned long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
-byte lastCheckHour, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia;
+byte lastCheckHour, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia, ticksScreen;
 bool flancoBotonInicio, flancoBotonMas, flancoBotonMenos, flancoBotonProg;
 DateTime timeNow;
 
@@ -243,8 +243,8 @@ void loop() {
       }
     }
     
-    conectado = (tensionCargador < 660);
-    cargando = (tensionCargador < 600);
+    conectado = (tensionCargador < 660 && tensionCargador > 100);
+    cargando = (tensionCargador < 600 && tensionCargador > 100);
     timeNow = rtc.now();
     int horaNow = timeNow.hour();
     int minutoNow = timeNow.minute();
@@ -372,7 +372,13 @@ void loop() {
     }else if (!conectado && inicioCargaActivado){
       FinalizarCarga();
     }
-    if (enPantallaNumero == 0 && luzLcd) updateScreen();
+    if (enPantallaNumero == 0 && luzLcd){
+      ticksScreen++;
+      if (ticksScreen >= 20){
+      updateScreen();
+      ticksScreen = 0;
+      }
+    }
   }
 
   if (digitalRead(pinPulsadorInicio) == HIGH) {
@@ -423,7 +429,7 @@ void FinalizarCarga(){
   cargaCompleta = true;
   permisoCarga = false;
   inicioCargaActivado = false;
-  tiempoInicioSesion = 0;                  // Se restan 520 porque la lectura se hace a través de un divisor de tensión
+  tiempoInicioSesion = 0;
   consumoCargadorAmperios = 0;
   consumoGeneralAmperios = 0;
   generacionFVAmperios = 0;
@@ -1290,15 +1296,8 @@ void updateScreen(){
     case 134:
       {
         lcd.print("Ajuste min:");
-        String str = (String)nuevoMinuto; // es una prueba a ver si asi lo centra en la pantalla
-        int lenght = str.length();
-        if (lenght == 1){
-          str = "0" + str;
-          lenght = 2;
-        }
-        lenght = 8 - (lenght / 2);
-        lcd.setCursor(lenght, 1);
-        lcd.print(str);
+        lcd.setCursor(7, 1);
+        lcd.print("0" + nuevoMinuto);
       }
       break;
     case 135:
