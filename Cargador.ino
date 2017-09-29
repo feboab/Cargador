@@ -36,16 +36,16 @@ const int BOTONMENOS = 2;
 const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
-byte horaInicioCarga, minutoInicioCarga, intensidadProgramada, consumoTotalMax, horaFinCarga, minutoFinCarga, generacionMinima, tipoCarga, tipoCargaInteligente;
-bool cargadorEnConsumoGeneral, conSensorGeneral, conFV, inicioCargaActivado, conTarifaValle, tempValorBool;
-unsigned long kwTotales, watiosCargados, acumTensionCargador;
-int duracionPulso, tensionCargador, numTensionAcum, numCiclos, nuevoAnno, valorTipoCarga, tempValorInt;
-bool permisoCarga, conectado, conectadoPrev, cargando, cargaCompleta, generacionSuficiente, luzLcd, horarioVerano;
-int consumoCargador, generacionFV, consumoGeneral, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
-byte consumoCargadorAmperios, generacionFVAmperios, consumoGeneralAmperios;
-unsigned long tiempoInicioSesion, tiempoCalculoPotenciaCargada, tiempoGeneraSuficiente, tiempoNoGeneraSuficiente, tiempoUltimaPulsacionBoton;
-byte lastCheckHour, enPantallaNumero, opcionNumero, nuevaHora, nuevoMinuto, nuevoMes, nuevoDia, ticksScreen;
-bool flancoBotonInicio, flancoBotonMas, flancoBotonMenos, flancoBotonProg;
+byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = false, conFV = false, inicioCargaActivado = false, conTarifaValle = false, tempValorBool = false;
+unsigned long kwTotales = 0, watiosCargados = 0, acumTensionCargador = 0;
+int duracionPulso = 0, tensionCargador = 0, numTensionAcum = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0;
+bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionSuficiente = false, luzLcd = false, horarioVerano = false;
+int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
+byte consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
+unsigned long tiempoInicioSesion = 0, tiempoCalculoPotenciaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
+byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, ticksScreen = 0;
+bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
 DateTime timeNow;
 
 
@@ -176,7 +176,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(" WALLBOX FEBOAB ");
   lcd.setCursor(0, 1);
-  lcd.print("**** V 1.02 ****");
+  lcd.print("**** V 1.03 ****");
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
 }
@@ -313,6 +313,7 @@ void loop() {
         }
         if (puedeCargar && permisoCarga){
           FinalizarCarga();
+          puedeCargar = false;
         }
         if (puedeCargar){
           digitalWrite(pinAlimentacionCargador, HIGH);
@@ -339,12 +340,8 @@ void loop() {
             }
             break;
           case FRANJATIEMPO:
-            {
-              long tiempoCarga = millis() - tiempoInicioSesion;
-              long valor = valorTipoCarga * 60000;
-              if (tiempoCarga >= valor){
+              if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)){
                 FinalizarCarga();
-              }
             }
             break;
           case EXCEDENTESFV:
@@ -375,36 +372,48 @@ void loop() {
     if (enPantallaNumero == 0 && luzLcd){
       ticksScreen++;
       if (ticksScreen >= 20){
-      updateScreen();
-      ticksScreen = 0;
+        updateScreen();
+        ticksScreen = 0;
       }
     }
   }
 
   if (digitalRead(pinPulsadorInicio) == HIGH) {
-    if (!flancoBotonInicio){
+    if (!flancoBotonInicio && (millis() - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONINICIO);
       flancoBotonInicio = true;
     }
-  }else flancoBotonInicio = false;
+  }else{
+    flancoBotonInicio = false;
+    tiempoOffBoton = millis();
+  }
   if (digitalRead(pinPulsadorProg) == HIGH){
-    if (!flancoBotonProg){
+    if (!flancoBotonProg && (millis() - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONPROG);
       flancoBotonProg = true;
     }
-  }else flancoBotonProg = false;
+  }else{
+    flancoBotonProg = false;
+    tiempoOffBoton = millis();
+  }
   if (digitalRead(pinPulsadorMas) == HIGH){
-    if (!flancoBotonMas){
+    if (!flancoBotonMas && (millis() - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONMAS);
       flancoBotonMas = true;
     }
-  }else flancoBotonMas = false;
+  }else {
+    flancoBotonMas = false;
+    tiempoOffBoton = millis();
+  }
   if (digitalRead(pinPulsadorMenos) == HIGH){
-    if (!flancoBotonMenos){
+    if (!flancoBotonMenos && (millis() - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONMENOS);
       flancoBotonMenos = true;
     }
-  }else flancoBotonMenos = false;
+  }else{
+    flancoBotonMenos = false;
+    tiempoOffBoton = millis();
+  }
   
   if (luzLcd){
     if (millis() - tiempoUltimaPulsacionBoton >= 600000){
@@ -445,6 +454,7 @@ void ProcesarBoton(int button){
         switch (button){
           case BOTONINICIO:
             if (inicioCargaActivado){
+              tempValorBool = false;
               enPantallaNumero = 4;
             }else{
               enPantallaNumero = 2;
@@ -483,10 +493,10 @@ void ProcesarBoton(int button){
             opcionNumero = 0;
             break;
           case BOTONMAS:
-            (opcionNumero == 2) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 2) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero == 0) ? opcionNumero = 2 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 2 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -531,12 +541,12 @@ void ProcesarBoton(int button){
             }
             break;
           case BOTONMAS:
-            if (!conSensorGeneral && opcionNumero == 4)opcionNumero = 0;
-            (opcionNumero == 6) ? opcionNumero = 0 : opcionNumero++;
+            if (!conSensorGeneral && opcionNumero >= 4)opcionNumero = 0;
+            (opcionNumero >= 6) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            if (!conSensorGeneral && opcionNumero == 0)opcionNumero = 4;
-            (opcionNumero == 0) ? opcionNumero = 6 : opcionNumero--;
+            if (!conSensorGeneral && opcionNumero <= 0)opcionNumero = 4;
+            (opcionNumero <= 0) ? opcionNumero = 6 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -552,10 +562,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 0;
             break;
           case BOTONMAS:
-            if (tempValorInt == 36) tempValorInt = 6;
+            if (tempValorInt >= 36) tempValorInt = 6;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 6) tempValorInt = 36;
+            if (tempValorInt <= 6) tempValorInt = 36;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -566,11 +576,17 @@ void ProcesarBoton(int button){
       case 4:
         switch (button){
           case BOTONINICIO:
-            FinalizarCarga();
-            if (watiosCargados == 0){
-              cargaCompleta = false;
+            if (tempValorBool){
+              FinalizarCarga();
+              if (watiosCargados == 0){
+                cargaCompleta = false;
+              }
             }
+            enPantallaNumero = 0;
             break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool = (tempValorBool) ? false : true;
           case BOTONPROG:
             enPantallaNumero = 0;
             break;
@@ -580,13 +596,16 @@ void ProcesarBoton(int button){
       case 10:
         switch (button){
           case BOTONINICIO:
-            enPantallaNumero = (opcionNumero == 0) ? 100 : 1;
+            if (opcionNumero == 0){
+              enPantallaNumero = 100;
+              tempValorBool = false;
+            }else enPantallaNumero = 1;
             opcionNumero = 0;
           case BOTONMAS:
-            (opcionNumero == 7) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 8) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero == 0) ? opcionNumero = 7 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 8 : opcionNumero--;
             break;          
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -646,10 +665,10 @@ void ProcesarBoton(int button){
             }
             break;
           case BOTONMAS:
-            (opcionNumero == 10) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 10) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero == 0) ? opcionNumero = 10 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 10 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -701,13 +720,18 @@ void ProcesarBoton(int button){
       case 100:
         switch (button){
           case BOTONINICIO:
-            kwTotales = 0;
-            EEPROM.write(15, 0);
-            EEPROM.write(16, 0);
-            EEPROM.write(17, 0);
-            EEPROM.write(18, 0);
+            if (tempValorBool){
+              kwTotales = 0;
+              EEPROM.write(15, 0);
+              EEPROM.write(16, 0);
+              EEPROM.write(17, 0);
+              EEPROM.write(18, 0);
+            }
             enPantallaNumero = 1;
             break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool = (tempValorBool) ? false : true;
           case BOTONPROG:
             enPantallaNumero = 1;
             break;
@@ -722,10 +746,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 23) tempValorInt = 0;
+            if (tempValorInt >= 23) tempValorInt = 0;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 0) tempValorInt = 23;
+            if (tempValorInt <= 0) tempValorInt = 23;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -741,10 +765,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 59) tempValorInt = 0;
+            if (tempValorInt >= 59) tempValorInt = 0;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 0) tempValorInt = 59;
+            if (tempValorInt <= 0) tempValorInt = 59;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -760,10 +784,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 23) tempValorInt = 0;
+            if (tempValorInt >= 23) tempValorInt = 0;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 0) tempValorInt = 23;
+            if (tempValorInt <= 0) tempValorInt = 23;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -779,10 +803,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 59) tempValorInt = 0;
+            if (tempValorInt >= 59) tempValorInt = 0;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 0) tempValorInt = 59;
+            if (tempValorInt <= 0) tempValorInt = 59;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -815,10 +839,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 36) tempValorInt = 6;
+            if (tempValorInt >= 36) tempValorInt = 6;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 6) tempValorInt = 36;
+            if (tempValorInt <= 6) tempValorInt = 36;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -868,10 +892,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 36) tempValorInt = 6;
+            if (tempValorInt >= 36) tempValorInt = 6;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 6) tempValorInt = 36;
+            if (tempValorInt <= 6) tempValorInt = 36;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -904,10 +928,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt == 60) tempValorInt = 10;
+            if (tempValorInt >= 60) tempValorInt = 10;
             break;
           case BOTONMENOS:
-            if (tempValorInt == 10) tempValorInt = 60;
+            if (tempValorInt <= 10) tempValorInt = 60;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -939,11 +963,11 @@ void ProcesarBoton(int button){
             enPantallaNumero = 132;
             break;
           case BOTONMAS:
-            if (nuevoMes == 12) nuevoMes = 1;
+            if (nuevoMes >= 12) nuevoMes = 1;
             else nuevoMes++;
             break;
           case BOTONMENOS:
-            if (nuevoMes == 1) nuevoMes = 12;
+            if (nuevoMes <= 1) nuevoMes = 12;
             else nuevoMes--;
             break;
           case BOTONPROG:
@@ -959,10 +983,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 133;
             break;
           case BOTONMAS:
-            (nuevoDia == daysInMonth[nuevoMes - 1]) ? nuevoDia = 1 : nuevoDia++;
+            (nuevoDia >= daysInMonth[nuevoMes - 1]) ? nuevoDia = 1 : nuevoDia++;
             break;
           case BOTONMENOS:
-            (nuevoDia == 1) ? nuevoDia = daysInMonth[nuevoMes - 1] : nuevoDia--;
+            (nuevoDia <= 1) ? nuevoDia = daysInMonth[nuevoMes - 1] : nuevoDia--;
             break;
           case BOTONPROG:
             opcionNumero = 2;
@@ -977,10 +1001,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 134;
             break;
           case BOTONMAS:
-            (nuevaHora == 23) ? nuevaHora = 0 : nuevaHora++;
+            (nuevaHora >= 23) ? nuevaHora = 0 : nuevaHora++;
             break;
           case BOTONMENOS:
-            (nuevaHora == 0) ? nuevaHora = 23 : nuevaHora--;
+            (nuevaHora <= 0) ? nuevaHora = 23 : nuevaHora--;
             break;
           case BOTONPROG:
             opcionNumero = 2;
@@ -996,10 +1020,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 135;
             break;
           case BOTONMAS:
-            (nuevoMinuto == 59) ? nuevoMinuto = 0 : nuevoMinuto++;
+            (nuevoMinuto >= 59) ? nuevoMinuto = 0 : nuevoMinuto++;
             break;
           case BOTONMENOS:
-            (nuevoMinuto == 0) ? nuevoMinuto = 59 : nuevoMinuto--;
+            (nuevoMinuto <= 0) ? nuevoMinuto = 59 : nuevoMinuto--;
             break;
           case BOTONPROG:
             opcionNumero = 2;
@@ -1033,12 +1057,13 @@ void updateScreen(){
   lcd.setCursor(0, 0);
   switch(enPantallaNumero){
     case 0:
-      if (cargando){
-        lcd.print("Cargando a:");
-        lcd.setCursor(6, 1);
-        lcd.print(consumoCargadorAmperios + " A");
-      }else{
-        if (conectado && inicioCargaActivado){
+      if (inicioCargaActivado){
+        if (cargando){
+          lcd.print("Cargando a:");
+          lcd.setCursor(6, 1);
+          lcd.print(consumoCargadorAmperios);
+          lcd.print(" A");
+        }else if (conectado){
           switch (tipoCarga){
             case EXCEDENTESFV:
             case INTELIGENTE:
@@ -1057,27 +1082,27 @@ void updateScreen(){
               lcd.print("Tarifa Valle.");
               break;
           }
-        }else if (inicioCargaActivado){
+        }else{
           lcd.print("Coche No");
           lcd.setCursor(0, 1);
           lcd.print("Conectado.");
-        }else if (conectado){
-          lcd.print("Coche Conectado.");
-          lcd.setCursor(0, 1);
-          lcd.print("A la espera...");
-        }else if (cargaCompleta){
-          lcd.print("Cargado ");
-          lcd.setCursor(0, 1);
-          lcd.print(watiosCargados / 100 + "wh");
-        }else{
-            lcd.setCursor(0, 0);
-            lcd.print(" WALLBOX FEBOAB ");
-            String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
-            hora += ":";
-            hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
-            lcd.setCursor(6, 1);
-            lcd.print(hora);
         }
+      }else if (conectado){
+        lcd.print("Coche Conectado.");
+        lcd.setCursor(0, 1);
+        lcd.print("A la espera...");
+      }else if (cargaCompleta){
+        lcd.print("Cargado");
+        lcd.setCursor(0, 1);
+        lcd.print(watiosCargados / 100);
+        lcd.print(" wh");
+      }else{
+        lcd.print(" WALLBOX FEBOAB ");
+        String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
+        hora += ":";
+        hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
+        lcd.setCursor(6, 1);
+        lcd.print(hora);
       }
       break;
     case 1:
@@ -1125,14 +1150,21 @@ void updateScreen(){
     case 3:
       lcd.print("Intensidad Carga");
       lcd.setCursor(6, 1);
-      lcd.print(tempValorInt + " A");
+      lcd.print(tempValorInt);
+      lcd.print(" A");
+      break;
+    case 4:
+      lcd.print("FINALIZAR CARGA:");
+      lcd.setCursor(7, 1);
+      (tempValorBool) ? lcd.print("SI") : lcd.print("NO");
       break;
     case 10:
       switch (opcionNumero){
         case 0:
           lcd.print("Carga Acumulada:");
           lcd.setCursor(2, 1);
-          lcd.print(kwTotales + " KWH");
+          lcd.print(kwTotales);
+          lcd.print(" KWH");
           break;
         case 1:
           lcd.print("Autoriz. Carga:");
@@ -1152,51 +1184,56 @@ void updateScreen(){
         case 4:
           lcd.print("Consigna Carga:");
           lcd.setCursor(6, 1);
-          lcd.print(intensidadProgramada + " A");
+          lcd.print(intensidadProgramada);
+          lcd.print(" A");
           break;
         case 5:
           lcd.print("Intensidad Carga:");
           lcd.setCursor(6, 1);
-          lcd.print(consumoCargadorAmperios + " A");
+          lcd.print(consumoCargadorAmperios);
+          lcd.print(" A");
           break;
         case 6:
           lcd.print("Excedentes FV:");
           lcd.setCursor(6, 1);
-          lcd.print(generacionFVAmperios + " A");
+          lcd.print(generacionFVAmperios);
+          lcd.print(" A");
           break;
         case 7:
           lcd.print("Consumo General:");
           lcd.setCursor(6, 1);
-          lcd.print(consumoGeneralAmperios + " A");
+          lcd.print(consumoGeneralAmperios);
+          lcd.print(" A");
+          break;
+        case 8:
+          lcd.print("Tension Medida:");
+          lcd.setCursor(6, 1);
+          lcd.print(tensionCargador);
+          lcd.print(" V");
           break;
       }
-      break;
-    case 4:
-      lcd.print("FINALIZAR CON");
-      lcd.setCursor(0, 1);
-      lcd.print("LA CARGA.");
       break;
     case 11:
       switch (opcionNumero){
         case 0:
           lcd.print("Hora Ini Carga:");
           lcd.setCursor(7, 1);
-          (horaInicioCarga < 10) ? lcd.print("0" + horaInicioCarga) : lcd.print(horaInicioCarga);
+          (horaInicioCarga < 10) ? lcd.print("0" + (String)horaInicioCarga) : lcd.print(horaInicioCarga);
           break;
         case 1:
           lcd.print("Minu. Ini Carga:");
           lcd.setCursor(7, 1);
-          (minutoInicioCarga < 10) ? lcd.print("0" + minutoInicioCarga) : lcd.print(minutoInicioCarga);
+          (minutoInicioCarga < 10) ? lcd.print("0" + (String)minutoInicioCarga) : lcd.print(minutoInicioCarga);
           break;
         case 2:
           lcd.print("Hora Fin Carga:");
           lcd.setCursor(7, 1);
-          (horaFinCarga < 10) ? lcd.print("0" + horaFinCarga) : lcd.print(horaFinCarga);
+          (horaFinCarga < 10) ? lcd.print("0" + (String)horaFinCarga) : lcd.print(horaFinCarga);
           break;
         case 3:
           lcd.print("Minu. Fin Carga:");
           lcd.setCursor(7, 1);
-          (minutoFinCarga < 10) ? lcd.print("0" + minutoFinCarga) : lcd.print(minutoFinCarga);
+          (minutoFinCarga < 10) ? lcd.print("0" + (String)minutoFinCarga) : lcd.print(minutoFinCarga);
           break;
         case 4:
           lcd.print("Trafo General:");
@@ -1206,7 +1243,8 @@ void updateScreen(){
         case 5:
           lcd.print("Intens. Maxima:");
           lcd.setCursor(6, 1);
-          lcd.print(intensidadProgramada + " A");
+          lcd.print(intensidadProgramada);
+          lcd.print(" A");
           break;
         case 6:
           lcd.print("Carg T General:");
@@ -1221,7 +1259,8 @@ void updateScreen(){
         case 8:
           lcd.print("Intens Min Gen:");
           lcd.setCursor(6, 1);
-          lcd.print(generacionMinima + " A");
+          lcd.print(generacionMinima);
+          lcd.print(" A");
           break;
         case 9:
           lcd.print("Tarifa Valle:");
@@ -1231,24 +1270,27 @@ void updateScreen(){
         case 10:
           lcd.print("Consu Total Max:");
           lcd.setCursor(6, 1);
-          lcd.print(consumoTotalMax + " A");
+          lcd.print(consumoTotalMax);
+          lcd.print(" A");
           break;
       }
       break;
     case 20:  // Carga por potencia
       lcd.print("Potencia:");
       lcd.setCursor(0, 1);
-      lcd.print(tempValorInt * 100 + " w");
+      lcd.print(tempValorInt * 100);
+      lcd.print(" w");
       break;
     case 21:  // carga por franja de tiempo
       lcd.print("Tiempo:");
       lcd.setCursor(0, 1);
-      lcd.print(tempValorInt + " min");
+      lcd.print(tempValorInt);
+      lcd.print(" min");
       break;
     case 100:
-      lcd.print(" RESET POTENCIA ");
-      lcd.setCursor(3, 1);
-      lcd.print("ACUMULADA");
+      lcd.print("RESET POT. ACUM.");
+      lcd.setCursor(7, 1);
+      (tempValorBool) ? lcd.print("Si") : lcd.print("No");
       break;
     case 110:
     case 111:
@@ -1256,7 +1298,7 @@ void updateScreen(){
     case 113:
       lcd.print("Ajuste:");
       lcd.setCursor(7, 1);
-      (tempValorInt < 10) ? lcd.print("0" + tempValorInt) : lcd.print(tempValorInt);
+      (tempValorInt < 10) ? lcd.print("0" + (String)tempValorInt) : lcd.print(tempValorInt);
       break;
     case 114:
     case 116:
@@ -1271,7 +1313,8 @@ void updateScreen(){
     case 120:
       lcd.print("Ajuste:");
       lcd.setCursor(6, 1);
-      lcd.print(tempValorInt + " A");
+      lcd.print(tempValorInt);
+      lcd.print(" A");
       break;
     case 130:
       lcd.print("Ajuste año:");
@@ -1294,11 +1337,9 @@ void updateScreen(){
       lcd.print(nuevaHora);
       break;
     case 134:
-      {
         lcd.print("Ajuste min:");
         lcd.setCursor(7, 1);
-        lcd.print("0" + nuevoMinuto);
-      }
+        (nuevoMinuto < 10) ? lcd.print("0" + (String)nuevoMinuto) : lcd.print(nuevoMinuto);
       break;
     case 135:
       lcd.print("Ajuste");
