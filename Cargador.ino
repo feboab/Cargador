@@ -417,14 +417,14 @@ void loop() {
     tiempoOffBoton = actualMillis;
   }
   
-  if (luzLcd){
-    if (actualMillis - tiempoUltimaPulsacionBoton >= 600000){
+  /*if (luzLcd){
+    if (actualMillis - tiempoUltimaPulsacionBoton >= 6000000){
       luzLcd = false;
       enPantallaNumero = 0;
       lcd.noBacklight();
       lcd.clear();
     }
-  }
+  }*/
 }
 
 void IniciarCarga(){
