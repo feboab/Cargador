@@ -1051,6 +1051,7 @@ void ProcesarBoton(int button){
     luzLcd = true;
     updateScreen();
     lcd.backlight();
+    tiempoUltimaPulsacionBoton = millis();
   }
 }
 
