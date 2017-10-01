@@ -378,45 +378,47 @@ void loop() {
     }
   }
 
+  int actualMillis = millis();
+  
   if (digitalRead(pinPulsadorInicio) == HIGH) {
-    if (!flancoBotonInicio && (millis() - tiempoOffBoton > 100)){
+    if (!flancoBotonInicio && (actualMillis - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONINICIO);
       flancoBotonInicio = true;
     }
-  }else{
+  }else if(flancoBotonInicio){
     flancoBotonInicio = false;
-    tiempoOffBoton = millis();
+    tiempoOffBoton = actualMillis;
   }
   if (digitalRead(pinPulsadorProg) == HIGH){
-    if (!flancoBotonProg && (millis() - tiempoOffBoton > 100)){
+    if (!flancoBotonProg && (actualMillis - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONPROG);
       flancoBotonProg = true;
     }
-  }else{
+  }else if(flancoBotonProg){
     flancoBotonProg = false;
-    tiempoOffBoton = millis();
+    tiempoOffBoton = actualMillis;
   }
   if (digitalRead(pinPulsadorMas) == HIGH){
-    if (!flancoBotonMas && (millis() - tiempoOffBoton > 100)){
+    if (!flancoBotonMas && (actualMillis - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONMAS);
       flancoBotonMas = true;
     }
-  }else {
+  }else if(flancoBotonMas){
     flancoBotonMas = false;
-    tiempoOffBoton = millis();
+    tiempoOffBoton = actualMillis;
   }
   if (digitalRead(pinPulsadorMenos) == HIGH){
-    if (!flancoBotonMenos && (millis() - tiempoOffBoton > 100)){
+    if (!flancoBotonMenos && (actualMillis - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONMENOS);
       flancoBotonMenos = true;
     }
-  }else{
+  }else if(flancoBotonMenos){
     flancoBotonMenos = false;
-    tiempoOffBoton = millis();
+    tiempoOffBoton = actualMillis;
   }
   
   if (luzLcd){
-    if (millis() - tiempoUltimaPulsacionBoton >= 600000){
+    if (actualMillis - tiempoUltimaPulsacionBoton >= 600000){
       luzLcd = false;
       enPantallaNumero = 0;
       lcd.noBacklight();
