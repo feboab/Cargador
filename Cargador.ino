@@ -36,6 +36,7 @@ const int BOTONMENOS = 2;
 const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
+volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = false, conFV = false, inicioCargaActivado = false, conTarifaValle = false, tempValorBool = false;
 unsigned long kwTotales = 0, watiosCargados = 0, acumTensionCargador = 0;
@@ -179,21 +180,27 @@ void setup() {
   lcd.print("**** V 1.03 ****");
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
+  tiempoUltimaPulsacionBoton = millis();
 }
 
  //----RUTINA DE GENERACIÓN DE LA ONDA CUADRADA----
 void RetPulsos() {                         
   if (permisoCarga) {            // Si hay permiso de carga ......
     digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
+    volatileTension = analogRead(pinTensionCargador);
     delayMicroseconds(duracionPulso); // durante el tiempo que marca "Duración_Pulsos" .... 
     digitalWrite(pinRegulacionCargador, LOW);     // desactivamos el pulso ....
   }else{                  // Si no hay permiso de carga ....
     digitalWrite(pinRegulacionCargador, HIGH);     // activamos el pulso ....
+    volatileTension = analogRead(pinTensionCargador);
   }
 }
 
 void loop() {
-  int tension = analogRead(pinTensionCargador);
+  int tension;
+  noInterrupts();                      // Desactivamos las interrupciones
+  tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
+  interrupts();                     // Activamos las interrupciones
 
   if (tension > 100){
     acumTensionCargador += tension;
@@ -417,14 +424,14 @@ void loop() {
     tiempoOffBoton = actualMillis;
   }
   
-  /*if (luzLcd){
+  if (luzLcd){
     if (actualMillis - tiempoUltimaPulsacionBoton >= 6000000){
       luzLcd = false;
       enPantallaNumero = 0;
       lcd.noBacklight();
       lcd.clear();
     }
-  }*/
+  }
 }
 
 void IniciarCarga(){
@@ -748,10 +755,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 23) tempValorInt = 0;
+            (tempValorInt >= 23) ? tempValorInt = 0 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 0) tempValorInt = 23;
+            (tempValorInt <= 0) ? tempValorInt = 23 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -767,10 +774,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 59) tempValorInt = 0;
+            (tempValorInt >= 59) ? tempValorInt = 0 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 0) tempValorInt = 59;
+            (tempValorInt <= 0) ? tempValorInt = 59 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -786,10 +793,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 23) tempValorInt = 0;
+            (tempValorInt >= 23) ? tempValorInt = 0 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 0) tempValorInt = 23;
+            (tempValorInt <= 0) ? tempValorInt = 23 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -805,10 +812,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 59) tempValorInt = 0;
+            (tempValorInt >= 59) ? tempValorInt = 0 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 0) tempValorInt = 59;
+            (tempValorInt <= 0) ? tempValorInt = 59 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -841,10 +848,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 36) tempValorInt = 6;
+            (tempValorInt >= 36) ? tempValorInt = 6 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 6) tempValorInt = 36;
+            (tempValorInt <= 6) ? tempValorInt = 36 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -894,10 +901,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 36) tempValorInt = 6;
+            (tempValorInt >= 36) ? tempValorInt = 6 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 6) tempValorInt = 36;
+            (tempValorInt <= 6) ? tempValorInt = 36 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -930,10 +937,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 60) tempValorInt = 10;
+            (tempValorInt >= 60) ? tempValorInt = 10 : tempValorInt++;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 10) tempValorInt = 60;
+            (tempValorInt <= 10) ? tempValorInt = 60 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -965,12 +972,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 132;
             break;
           case BOTONMAS:
-            if (nuevoMes >= 12) nuevoMes = 1;
-            else nuevoMes++;
+            (nuevoMes >= 12) ? nuevoMes = 1 : nuevoMes++;
             break;
           case BOTONMENOS:
-            if (nuevoMes <= 1) nuevoMes = 12;
-            else nuevoMes--;
+            (nuevoMes <= 1) ? nuevoMes = 12 : nuevoMes--;
             break;
           case BOTONPROG:
             opcionNumero = 2;
@@ -1047,11 +1052,11 @@ void ProcesarBoton(int button){
         updateScreen();
         break;
     }
-  }else{    
+  }else{
+    tiempoUltimaPulsacionBoton = millis();
     luzLcd = true;
     updateScreen();
     lcd.backlight();
-    tiempoUltimaPulsacionBoton = millis();
   }
 }
 
