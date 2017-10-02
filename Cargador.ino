@@ -94,7 +94,7 @@ void setup() {
   kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 16, 17 y 18.
 
   lcd.begin(16, 2);
-  lcd.backlight();
+  lcd.setBacklight(HIGH);
   luzLcd = true;
   
   Serial.begin(9600);
@@ -425,11 +425,12 @@ void loop() {
   }
   
   if (luzLcd){
-    if (actualMillis - tiempoUltimaPulsacionBoton >= 6000000){
+    if (tiempoUltimaPulsacionBoton > actualMillis) tiempoUltimaPulsacionBoton = actualMillis;
+    if (actualMillis - tiempoUltimaPulsacionBoton >= 600000){
       luzLcd = false;
       enPantallaNumero = 0;
-      lcd.noBacklight();
       lcd.clear();
+      lcd.setBacklight(LOW);
     }
   }
 }
@@ -1053,10 +1054,9 @@ void ProcesarBoton(int button){
         break;
     }
   }else{
-    tiempoUltimaPulsacionBoton = millis();
-    luzLcd = true;
     updateScreen();
-    lcd.backlight();
+    luzLcd = true;
+    lcd.setBacklight(HIGH);
   }
 }
 
@@ -1387,10 +1387,13 @@ bool HayExcedentesFV(){
 }
 
 bool CheckExcedendesFV(){
+  unsigned long currentMillis = millis();
+  if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
+  if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
+  
   generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
   
   if (!generacionSuficiente){                // Si NO hay excedentes sufucientes ....
-    unsigned long currentMillis = millis();
     tiempoGeneraSuficiente = currentMillis;         // comenzamos a controlar el tiempo durante el que hay excedentes ....
     if (currentMillis - tiempoNoGeneraSuficiente > 120000) return false; // Si no hay excedentes durante más de 2 minutos desactivamos la carga
   }
