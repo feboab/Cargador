@@ -1,5 +1,5 @@
 #include <RTClib.h>
-#include <TimerOne.h>
+#include <PWM.h>
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>//Se incluye la librería EEPROM
 
@@ -34,11 +34,10 @@ const int BOTONMENOS = 2;
 const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
-volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = false, conFV = false, inicioCargaActivado = false, conTarifaValle = false, tempValorBool = false;
 unsigned long kwTotales = 0, watiosCargados = 0, acumTensionCargador = 0;
-int duracionPulso = 0, tensionCargador = 0, numTensionAcum = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0;
+int tensionCargador = 0, numTensionAcum = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0;
 bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionSuficiente = false, luzLcd = false, horarioVerano = false;
 int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 byte consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
@@ -53,20 +52,14 @@ const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 // VARIABLES PARA EL RELOJ RTC ---------------
 RTC_DS3231 rtc;
 
-// Define various ADC prescaler--------------
-const unsigned char PS_16 = (1 << ADPS2);
-const unsigned char PS_32 = (1 << ADPS2) | (1 << ADPS0);
-const unsigned char PS_64 = (1 << ADPS2) | (1 << ADPS1);
-const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
-
 void setup() {
-  //    ---------Se establece el valor del prescaler----------------
-  ADCSRA &= ~PS_128;  // remove bits set by Arduino library
-  // you can choose a prescaler from above. PS_16, PS_32, PS_64 or PS_128
-  ADCSRA |= PS_32;    // set our own prescaler to 32
 
 // DEFINICIÓN DE LOS PINES COMO ENTRADA O SALIDA
-  pinMode(pinRegulacionCargador, OUTPUT);
+  bool sucess = SetPinFrequencySafe(pinRegulacionCargador, 1000);
+  if (sucess){
+    pinMode(13, OUTPUT);
+    digitalWrite(13, HIGH);  
+  }
   pinMode(pinAlimentacionCargador, OUTPUT);
   pinMode(pinPulsadorProg, INPUT);
   pinMode(pinPulsadorMas, INPUT);
@@ -163,11 +156,7 @@ void setup() {
     EEPROM.write(17, 0);
     EEPROM.write(18, 0);
   }
-  
-  Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda
-  Timer1.attachInterrupt(RetPulsos); // Activa la interrupcion y la asocia a RetPulsos
 
-  duracionPulso = ((intensidadProgramada * 105 / 7) - 60);
   permisoCarga = false;
   conectado = false;
   enPantallaNumero = 0;
@@ -175,30 +164,15 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(" WALLBOX FEBOAB ");
   lcd.setCursor(0, 1);
-  lcd.print("**** V 1.03 ****");
+  lcd.print("**** V 1.04 ****");
   delay(1500);
-  digitalWrite(pinRegulacionCargador, HIGH);
+  pwmWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
 }
 
- //----RUTINA DE GENERACIÓN DE LA ONDA CUADRADA----
-void RetPulsos() {                         
-  if (permisoCarga) {            // Si hay permiso de carga ......
-    digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
-    volatileTension = analogRead(pinTensionCargador);
-    delayMicroseconds(duracionPulso); // durante el tiempo que marca "Duración_Pulsos" .... 
-    digitalWrite(pinRegulacionCargador, LOW);     // desactivamos el pulso ....
-  }else{                  // Si no hay permiso de carga ....
-    digitalWrite(pinRegulacionCargador, HIGH);     // activamos el pulso ....
-    volatileTension = analogRead(pinTensionCargador);
-  }
-}
-
 void loop() {
-  int tension;
-  noInterrupts();                      // Desactivamos las interrupciones
-  tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
-  interrupts();                     // Activamos las interrupciones
+  
+  int tension = analogRead(pinTensionCargador);
 
   if (tension > 100){
     acumTensionCargador += tension;
@@ -322,12 +296,12 @@ void loop() {
         }
         if (puedeCargar){
           digitalWrite(pinAlimentacionCargador, HIGH);
-          duracionPulso = CalcularDuracionPulso();
+          pwmWrite(pinRegulacionCargador, CalcularPWM());
           permisoCarga = puedeCargar;
         }
       }else if (cargando){
         CalcularPotencias();
-        duracionPulso = CalcularDuracionPulso();
+        pwmWrite(pinRegulacionCargador, CalcularPWM());
         switch(tipoCarga){
           case TARIFAVALLE:
             if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
@@ -443,6 +417,7 @@ void IniciarCarga(){
 
 void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
+  pwmWrite(pinRegulacionCargador, 255);
   cargaCompleta = true;
   permisoCarga = false;
   inicioCargaActivado = false;
@@ -1431,15 +1406,15 @@ void CalcularPotencias(){
   }
 }
 
-int CalcularDuracionPulso(){
+int CalcularPWM(){
   int pulso;
   int consumo = ObtenerConsumoRestante();
   if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la potencia programada y tenemos el sensor general conectado..
-    pulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+    pulso = ((consumo * 4) - 1);          // calculamos la duración del pulso en función de la intensidad restante
   }else{
-    pulso = ((intensidadProgramada * 100 / 6) - 28);
+    pulso = ((intensidadProgramada * 4) - 1);
   }
-  if (pulso < 72) pulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
+  if (pulso < 23) pulso = 23;   // Si la duración del pulso resultante es menor de 23(6A) lo ponemos a 6 A.
   return pulso;
 }
 
