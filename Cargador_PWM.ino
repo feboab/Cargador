@@ -1412,7 +1412,7 @@ int CalcularPWM(){
   if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la potencia programada y tenemos el sensor general conectado..
     pulso = ((consumo * 4) - 1);          // calculamos la duración del pulso en función de la intensidad restante
   }else{
-    pulso = ((intensidadProgramada * 4) - 1);
+    pulso = (((float)intensidadProgramada * 4.25f) - 1);
   }
   if (pulso < 23) pulso = 23;   // Si la duración del pulso resultante es menor de 23(6A) lo ponemos a 6 A.
   return pulso;
