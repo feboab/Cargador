@@ -1,3 +1,4 @@
+#include <Wire.h>
 #include <RTClib.h>
 #include <TimerOne.h>
 #include <LiquidCrystal_I2C.h>
@@ -376,14 +377,14 @@ void loop() {
     }
     if (enPantallaNumero == 0 && luzLcd){
       ticksScreen++;
-      if (ticksScreen >= 20){
+      if (ticksScreen >= 1000){
         updateScreen();
         ticksScreen = 0;
       }
     }
   }
 
-  int actualMillis = millis();
+  long actualMillis = millis();
   
   if (digitalRead(pinPulsadorInicio) == HIGH) {
     if (!flancoBotonInicio && (actualMillis - tiempoOffBoton > 100)){
