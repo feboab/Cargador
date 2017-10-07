@@ -217,7 +217,7 @@ void loop() {
       if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
         consumoGeneralAmperios = 0;
       }
-      generacionFVAmperios = ((generacionFV - 520) * 4) / 24;       // Calcula la generación fotovoltaica en Amperios
+      generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
       if ((generacionFVAmperios < 0) || !conFV)    {
         generacionFVAmperios = 0;
       }
@@ -546,10 +546,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 0;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 36) tempValorInt = 6;
+            if (tempValorInt >= 32) tempValorInt = 6;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 6) tempValorInt = 36;
+            if (tempValorInt <= 6) tempValorInt = 32;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -876,10 +876,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            (tempValorInt >= 36) ? tempValorInt = 6 : tempValorInt++;
+            (tempValorInt >= 25) ? tempValorInt = 2 : tempValorInt++;
             break;
           case BOTONMENOS:
-            (tempValorInt <= 6) ? tempValorInt = 36 : tempValorInt--;
+            (tempValorInt <= 2) ? tempValorInt = 25 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -907,15 +907,15 @@ void ProcesarBoton(int button){
       case 120:
         switch (button){
           case BOTONINICIO:
-            consumoTotalMax = tempValorBool;
+            consumoTotalMax = tempValorInt;
             EEPROM.write(3, consumoTotalMax);
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            (tempValorInt >= 60) ? tempValorInt = 10 : tempValorInt++;
+            (tempValorInt >= 63) ? tempValorInt = 10 : tempValorInt++;
             break;
           case BOTONMENOS:
-            (tempValorInt <= 10) ? tempValorInt = 60 : tempValorInt--;
+            (tempValorInt <= 10) ? tempValorInt = 63 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -1355,7 +1355,7 @@ bool HayExcedentesFV(){
   
   if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // comenzamos a controlar el tiempo durante el que no hay excedentes ....
-    if (currentMillis - tiempoGeneraSuficiente > 120000) return true;   // Si hay excedentes durante más de 2 minutos activamos la carga
+    if (currentMillis - tiempoGeneraSuficiente > 300000) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
   }
   return false;
 }
@@ -1369,7 +1369,7 @@ bool CheckExcedendesFV(){
   
   if (!generacionSuficiente){                // Si NO hay excedentes sufucientes ....
     tiempoGeneraSuficiente = currentMillis;         // comenzamos a controlar el tiempo durante el que hay excedentes ....
-    if (currentMillis - tiempoNoGeneraSuficiente > 120000) return false; // Si no hay excedentes durante más de 2 minutos desactivamos la carga
+    if (currentMillis - tiempoNoGeneraSuficiente > 300000) return false; // Si no hay excedentes durante más de 5 minutos desactivamos la carga
   }
   return true;
 }
@@ -1401,8 +1401,8 @@ void CalcularPotencias(){
   }
   
   if (tiempoCalculoWatios > 3000) {                   // Si llevamos más de 3 seg vamos sumando ...
-    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 24500l) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
-    kwTotales = kwTotales + ((consumoCargadorAmperios * 24500l) / (3600000l / tiempoCalculoWatios));
+    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
+    kwTotales = kwTotales + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));
     tiempoCalculoPotenciaCargada = currentMillis;  // Si no estamos cargando reseteamos el tiempo de cálculo de la energía cargada
   }
 }
@@ -1413,9 +1413,9 @@ int CalcularPWM(){
   if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la potencia programada y tenemos el sensor general conectado..
     pulso = (((float)consumo * 4.25f) - 1);          // calculamos la duración del pulso en función de la intensidad restante
   }else{
-    pulso = (((float)intensidadProgramada * 4.25f) - 1);
+    pulso = (((float)intensidadProgramada * 4.25f) - 1); // Si el consumo restante es mayor que la potencia programada, limitamos la carga a la potencia programada
   }
-  if (pulso < 25) pulso = 25;   // Si la duración del pulso resultante es menor de 23(6A) lo ponemos a 6 A.
+  if (pulso < 25) pulso = 25;   // Si la duración del pulso resultante es menor de 25(6A) lo ponemos a 6 A.
   return pulso;
 }
 
@@ -1427,7 +1427,7 @@ int ObtenerConsumoRestante(){
                       // para tenerlo en cuenta al calcular la intensidad disponible.
                       // Esto es debido a que la normativa permite sacar la alimentación del cargador directamente del contador
                       // Se hace en edificios para no tener que tirar la línea desde el CGP de la vivienda hasta el garage          
-      return (generacionFVAmperios + consumoTotalMax) - consumoGeneralAmperios; // Si el trafo que mide consumo general incluye el cargador //no se resta el consumo del cargador
+      return (generacionFVAmperios + consumoTotalMax) - consumoGeneralAmperios; // Si el trafo que mide consumo general incluye el cargador no se resta el consumo del cargador
     }else{
       return (generacionFVAmperios + consumoTotalMax) - (consumoGeneralAmperios - consumoCargadorAmperios); // Si el trafo que mide consumo general no incluye el cargador se resta el consumo del cargador
     }
@@ -1461,3 +1461,4 @@ long EEPROMReadlong(long address)       //    Función que permite leer un dato 
   //Return the recomposed long by using bitshift.
   return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
 }
+
