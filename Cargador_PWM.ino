@@ -103,23 +103,23 @@ void setup() {
   if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
     horaInicioCarga = 0;
     EEPROM.write(0, horaInicioCarga);
-    cargadorEnConsumoGeneral = false;
+    cargadorEnConsumoGeneral = true;
     EEPROM.write(6, cargadorEnConsumoGeneral); 
     conSensorGeneral = true;
     EEPROM.write(7, conSensorGeneral);
-    conFV = false;
+    conFV = true;
     EEPROM.write(9, conFV);
-    conTarifaValle = false;
+    conTarifaValle = true;
     EEPROM.write(10, conTarifaValle);
     valorTipoCarga = 0;
     EEPROM.write(12, valorTipoCarga);
     inicioCargaActivado = false;
     EEPROM.write(13, inicioCargaActivado);
-    horarioVerano = false;
+    horarioVerano = true;
     EEPROM.write(14, horarioVerano);
   }
   if (generacionMinima > 32) {
-    generacionMinima = 0;
+    generacionMinima = 4;
     EEPROM.write(8, generacionMinima);
   }
   if (minutoInicioCarga > 59) {
