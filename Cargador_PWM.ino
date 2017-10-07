@@ -2,9 +2,9 @@
 #include <RTClib.h>
 #include <PWM.h>
 #include <LiquidCrystal_I2C.h>
-#include <EEPROM.h>//Se incluye la librería EEPROM
+#include <EEPROM.h>
 
-LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Algunas pantallas llevan por defecto la dirección 27 y otras la 3F
+LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Declaración de la Pantalla LCD con la dirección 3F
 
 //              DEFINICIÓN PINES ENTRADAS ANALOGICAS
 int pinGeneracionFV = 0;      // define el pin 0 como 'Generacion FV'
@@ -83,9 +83,9 @@ void setup() {
   valorTipoCarga = EEPROM.read(12);
   inicioCargaActivado = EEPROM.read(13);
   horarioVerano = EEPROM.read(14);
-  kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 16, 17 y 18.
+  kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, direcciones 15, 16, 17 y 18.
 
-  lcd.begin(16, 2);
+  lcd.begin(16, 2); //Iniciaclización de la Pantalla LCD
   lcd.setBacklight(HIGH);
   luzLcd = true;
   
@@ -100,7 +100,7 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
   
-  if (horaInicioCarga > 24) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
+  if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
     horaInicioCarga = 0;
     EEPROM.write(0, horaInicioCarga);
     cargadorEnConsumoGeneral = false;
@@ -118,7 +118,7 @@ void setup() {
     horarioVerano = false;
     EEPROM.write(14, horarioVerano);
   }
-  if (generacionMinima > 100) {
+  if (generacionMinima > 32) {
     generacionMinima = 0;
     EEPROM.write(8, generacionMinima);
   }
@@ -133,11 +133,11 @@ void setup() {
     intensidadProgramada = 32;   // tampoco puede ser mayor de 32A, ya que es la intensidad máxima que soporta el cargador.
     EEPROM.write(2, intensidadProgramada);
   }
-  if (consumoTotalMax > 60) {
+  if (consumoTotalMax > 63) {
     consumoTotalMax = 32;
     EEPROM.write(3, consumoTotalMax); //Si el valor es erroneo lo ponemos a 32
   }
-  if (horaFinCarga > 24) {
+  if (horaFinCarga > 23) {
     horaFinCarga = 0;
     EEPROM.write(4, horaFinCarga);//Si el valor es erroneo lo ponemos a 0
   }
@@ -175,7 +175,7 @@ void loop() {
   
   int tension = analogRead(pinTensionCargador);
 
-  if (tension > 100){
+  if (tension > 300){
     acumTensionCargador += tension;
     numTensionAcum++;
   }
@@ -223,8 +223,8 @@ void loop() {
       }
     }
     
-    conectado = (tensionCargador < 660 && tensionCargador > 100);
-    cargando = (tensionCargador < 600 && tensionCargador > 100);
+    conectado = (tensionCargador < 660 && tensionCargador > 300);
+    cargando = (tensionCargador < 600 && tensionCargador > 300);
     timeNow = rtc.now();
     int horaNow = timeNow.hour();
     int minutoNow = timeNow.minute();
