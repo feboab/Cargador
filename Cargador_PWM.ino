@@ -202,26 +202,24 @@ void loop() {
     }
     acumTensionCargador = 0;
     numTensionAcum = 0;
-    if (permisoCarga){
-      consumoCargador = picoConsumoCargador;
-      consumoGeneral = picoConsumoGeneral;
-      generacionFV = picoGeneracionFV;
-      picoConsumoCargador = 0;
-      picoConsumoGeneral = 0;
-      picoGeneracionFV = 0;
-  
-      consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
-      if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
-        consumoCargadorAmperios = 0;
-      }
-      consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
-      if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
-        consumoGeneralAmperios = 0;
-      }
-      generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
-      if ((generacionFVAmperios < 0) || !conFV)    {
-        generacionFVAmperios = 0;
-      }
+    consumoCargador = picoConsumoCargador;
+    consumoGeneral = picoConsumoGeneral;
+    generacionFV = picoGeneracionFV;
+    picoConsumoCargador = 0;
+    picoConsumoGeneral = 0;
+    picoGeneracionFV = 0;
+
+    consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
+    if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
+      consumoCargadorAmperios = 0;
+    }
+    consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
+    if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
+      consumoGeneralAmperios = 0;
+    }
+    generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
+    if ((generacionFVAmperios < 0) || !conFV){
+      generacionFVAmperios = 0;
     }
     
     conectado = (tensionCargador < 660 && tensionCargador > 300);
