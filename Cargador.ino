@@ -90,9 +90,9 @@ void setup() {
   valorTipoCarga = EEPROM.read(12);
   inicioCargaActivado = EEPROM.read(13);
   horarioVerano = EEPROM.read(14);
-  kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, por lo que no se pueden usar las direcciones 16, 17 y 18.
+  kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, direcciones 15, 16, 17 y 18.
 
-  lcd.begin(16, 2);
+  lcd.begin(16, 2); //Iniciaclización de la Pantalla LCD
   lcd.setBacklight(HIGH);
   luzLcd = true;
   
@@ -107,26 +107,26 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
   
-  if (horaInicioCarga > 24) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
+  if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
     horaInicioCarga = 0;
     EEPROM.write(0, horaInicioCarga);
-    cargadorEnConsumoGeneral = false;
+    cargadorEnConsumoGeneral = true;
     EEPROM.write(6, cargadorEnConsumoGeneral); 
     conSensorGeneral = true;
     EEPROM.write(7, conSensorGeneral);
-    conFV = false;
+    conFV = true;
     EEPROM.write(9, conFV);
-    conTarifaValle = false;
+    conTarifaValle = true;
     EEPROM.write(10, conTarifaValle);
     valorTipoCarga = 0;
     EEPROM.write(12, valorTipoCarga);
     inicioCargaActivado = false;
     EEPROM.write(13, inicioCargaActivado);
-    horarioVerano = false;
+    horarioVerano = true;
     EEPROM.write(14, horarioVerano);
   }
-  if (generacionMinima > 100) {
-    generacionMinima = 0;
+  if (generacionMinima > 32) {
+    generacionMinima = 4;
     EEPROM.write(8, generacionMinima);
   }
   if (minutoInicioCarga > 59) {
@@ -140,11 +140,11 @@ void setup() {
     intensidadProgramada = 32;   // tampoco puede ser mayor de 32A, ya que es la intensidad máxima que soporta el cargador.
     EEPROM.write(2, intensidadProgramada);
   }
-  if (consumoTotalMax > 60) {
+  if (consumoTotalMax > 63) {
     consumoTotalMax = 32;
     EEPROM.write(3, consumoTotalMax); //Si el valor es erroneo lo ponemos a 32
   }
-  if (horaFinCarga > 24) {
+  if (horaFinCarga > 23) {
     horaFinCarga = 0;
     EEPROM.write(4, horaFinCarga);//Si el valor es erroneo lo ponemos a 0
   }
@@ -176,7 +176,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(" WALLBOX FEBOAB ");
   lcd.setCursor(0, 1);
-  lcd.print("**** V 1.03 ****");
+  lcd.print("**** V 1.04 ****");
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -205,52 +205,50 @@ void loop() {
     acumTensionCargador += tension;
     numTensionAcum++;
   }
-
-  if (permisoCarga){
-    int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
-    int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-    int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
-    
-    if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
-      picoConsumoCargador = consumoCargadorTemp;
-    if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
-      picoConsumoGeneral = consumoGeneralTemp;
-    if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
-      picoGeneracionFV = generacionFVTemp;
-  }
+  
+  int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
+  int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
+  int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
+  
+  if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
+    picoConsumoCargador = consumoCargadorTemp;
+  if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
+    picoConsumoGeneral = consumoGeneralTemp;
+  if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
+    picoGeneracionFV = generacionFVTemp;
   
   numCiclos++;
   if (numCiclos > 299){
     numCiclos = 0;
     if (acumTensionCargador > 0 && numTensionAcum > 0){
       tensionCargador = acumTensionCargador / numTensionAcum;
+    }else{
+      tensionCargador = 0;
     }
-    if (permisoCarga){
-      consumoCargador = picoConsumoCargador;
-      consumoGeneral = picoConsumoGeneral;
-      generacionFV = picoGeneracionFV;
-      acumTensionCargador = 0;
-      numTensionAcum = 0;
-      picoConsumoCargador = 0;
-      picoConsumoGeneral = 0;
-      picoGeneracionFV = 0;
-  
-      consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
-      if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
-        consumoCargadorAmperios = 0;
-      }
-      consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
-      if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
-        consumoGeneralAmperios = 0;
-      }
-      generacionFVAmperios = ((generacionFV - 520) * 4) / 24;       // Calcula la generación fotovoltaica en Amperios
-      if ((generacionFVAmperios < 0) || !conFV)    {
-        generacionFVAmperios = 0;
-      }
+    acumTensionCargador = 0;
+    numTensionAcum = 0;
+    consumoCargador = picoConsumoCargador;
+    consumoGeneral = picoConsumoGeneral;
+    generacionFV = picoGeneracionFV;
+    picoConsumoCargador = 0;
+    picoConsumoGeneral = 0;
+    picoGeneracionFV = 0;
+
+    consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
+    if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
+      consumoCargadorAmperios = 0;
+    }
+    consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
+    if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
+      consumoGeneralAmperios = 0;
+    }
+    generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
+    if ((generacionFVAmperios < 0) || !conFV){
+      generacionFVAmperios = 0;
     }
     
-    conectado = (tensionCargador < 660 && tensionCargador > 100);
-    cargando = (tensionCargador < 600 && tensionCargador > 100);
+    conectado = (tensionCargador < 660 && tensionCargador > 300);
+    cargando = (tensionCargador < 600 && tensionCargador > 300);
     timeNow = rtc.now();
     int horaNow = timeNow.hour();
     int minutoNow = timeNow.minute();
@@ -375,7 +373,7 @@ void loop() {
     }else if (!conectado && inicioCargaActivado){
       FinalizarCarga();
     }
-    if (enPantallaNumero == 0 && luzLcd){
+    if ((enPantallaNumero == 0 || enPantallaNumero == 10) && luzLcd){
       ticksScreen++;
       if (ticksScreen >= 1000){
         updateScreen();
@@ -571,10 +569,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 0;
             break;
           case BOTONMAS:
-            if (tempValorInt >= 36) tempValorInt = 6;
+            if (tempValorInt >= 32) tempValorInt = 6;
             break;
           case BOTONMENOS:
-            if (tempValorInt <= 6) tempValorInt = 36;
+            if (tempValorInt <= 6) tempValorInt = 32;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -901,10 +899,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            (tempValorInt >= 36) ? tempValorInt = 6 : tempValorInt++;
+            (tempValorInt >= 25) ? tempValorInt = 2 : tempValorInt++;
             break;
           case BOTONMENOS:
-            (tempValorInt <= 6) ? tempValorInt = 36 : tempValorInt--;
+            (tempValorInt <= 2) ? tempValorInt = 25 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -932,15 +930,15 @@ void ProcesarBoton(int button){
       case 120:
         switch (button){
           case BOTONINICIO:
-            consumoTotalMax = tempValorBool;
+            consumoTotalMax = tempValorInt;
             EEPROM.write(3, consumoTotalMax);
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            (tempValorInt >= 60) ? tempValorInt = 10 : tempValorInt++;
+            (tempValorInt >= 63) ? tempValorInt = 10 : tempValorInt++;
             break;
           case BOTONMENOS:
-            (tempValorInt <= 10) ? tempValorInt = 60 : tempValorInt--;
+            (tempValorInt <= 10) ? tempValorInt = 63 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -1380,7 +1378,7 @@ bool HayExcedentesFV(){
   
   if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // comenzamos a controlar el tiempo durante el que no hay excedentes ....
-    if (currentMillis - tiempoGeneraSuficiente > 120000) return true;   // Si hay excedentes durante más de 2 minutos activamos la carga
+    if (currentMillis - tiempoGeneraSuficiente > 300000) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
   }
   return false;
 }
@@ -1394,7 +1392,7 @@ bool CheckExcedendesFV(){
   
   if (!generacionSuficiente){                // Si NO hay excedentes sufucientes ....
     tiempoGeneraSuficiente = currentMillis;         // comenzamos a controlar el tiempo durante el que hay excedentes ....
-    if (currentMillis - tiempoNoGeneraSuficiente > 120000) return false; // Si no hay excedentes durante más de 2 minutos desactivamos la carga
+    if (currentMillis - tiempoNoGeneraSuficiente > 300000) return false; // Si no hay excedentes durante más de 5 minutos desactivamos la carga
   }
   return true;
 }
@@ -1426,8 +1424,8 @@ void CalcularPotencias(){
   }
   
   if (tiempoCalculoWatios > 3000) {                   // Si llevamos más de 3 seg vamos sumando ...
-    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 24500l) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
-    kwTotales = kwTotales + ((consumoCargadorAmperios * 24500l) / (3600000l / tiempoCalculoWatios));
+    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
+    kwTotales = kwTotales + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));
     tiempoCalculoPotenciaCargada = currentMillis;  // Si no estamos cargando reseteamos el tiempo de cálculo de la energía cargada
   }
 }
