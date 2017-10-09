@@ -56,6 +56,7 @@ RTC_DS3231 rtc;
 void setup() {
 
 // DEFINICIÓN DE LOS PINES COMO ENTRADA O SALIDA
+  InitTimersSafe();
   bool sucess = SetPinFrequencySafe(pinRegulacionCargador, 1000);
   if (sucess){
     pinMode(13, OUTPUT);
@@ -180,31 +181,31 @@ void loop() {
     numTensionAcum++;
   }
 
-  if (permisoCarga){
-    int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
-    int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-    int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
-    
-    if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
-      picoConsumoCargador = consumoCargadorTemp;
-    if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
-      picoConsumoGeneral = consumoGeneralTemp;
-    if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
-      picoGeneracionFV = generacionFVTemp;
-  }
+  int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
+  int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
+  int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
+  
+  if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
+    picoConsumoCargador = consumoCargadorTemp;
+  if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
+    picoConsumoGeneral = consumoGeneralTemp;
+  if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
+    picoGeneracionFV = generacionFVTemp;
   
   numCiclos++;
   if (numCiclos > 299){
     numCiclos = 0;
     if (acumTensionCargador > 0 && numTensionAcum > 0){
       tensionCargador = acumTensionCargador / numTensionAcum;
+    }else{
+      tensionCargador = 0;
     }
+    acumTensionCargador = 0;
+    numTensionAcum = 0;
     if (permisoCarga){
       consumoCargador = picoConsumoCargador;
       consumoGeneral = picoConsumoGeneral;
       generacionFV = picoGeneracionFV;
-      acumTensionCargador = 0;
-      numTensionAcum = 0;
       picoConsumoCargador = 0;
       picoConsumoGeneral = 0;
       picoGeneracionFV = 0;
@@ -349,7 +350,7 @@ void loop() {
     }else if (!conectado && inicioCargaActivado){
       FinalizarCarga();
     }
-    if (enPantallaNumero == 0 && luzLcd){
+    if ((enPantallaNumero == 0 || enPantallaNumero == 10) && luzLcd){
       ticksScreen++;
       if (ticksScreen >= 1000){
         updateScreen();
