@@ -201,7 +201,7 @@ void loop() {
   tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
   interrupts();                     // Activamos las interrupciones
 
-  if (tension > 100){
+  if (tension > 300){
     acumTensionCargador += tension;
     numTensionAcum++;
   }
