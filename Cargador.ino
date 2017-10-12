@@ -39,13 +39,13 @@ volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = false, conFV = false, inicioCargaActivado = false, conTarifaValle = false, tempValorBool = false;
 unsigned long kwTotales = 0, watiosCargados = 0, acumTensionCargador = 0;
-int duracionPulso = 0, tensionCargador = 0, numTensionAcum = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0;
+int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0;
 bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionSuficiente = false, luzLcd = false, horarioVerano = false;
 int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
-byte consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
+int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoPotenciaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
 byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, ticksScreen = 0;
-bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
+bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
 
 
@@ -193,193 +193,183 @@ void RetPulsos() {
     digitalWrite(pinRegulacionCargador, HIGH);     // activamos el pulso ....
     volatileTension = analogRead(pinTensionCargador);
   }
+  actualizarDatos = true;
 }
 
 void loop() {
-  int tension;
-  noInterrupts();                      // Desactivamos las interrupciones
-  tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
-  interrupts();                     // Activamos las interrupciones
-
-  if (tension > 300){
-    acumTensionCargador += tension;
-    numTensionAcum++;
-  }
-  
-  int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
-  int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-  int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
-  
-  if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
-    picoConsumoCargador = consumoCargadorTemp;
-  if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
-    picoConsumoGeneral = consumoGeneralTemp;
-  if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
-    picoGeneracionFV = generacionFVTemp;
-  
-  numCiclos++;
-  if (numCiclos > 299){
-    numCiclos = 0;
-    if (acumTensionCargador > 0 && numTensionAcum > 0){
-      tensionCargador = acumTensionCargador / numTensionAcum;
-    }else{
-      tensionCargador = 0;
-    }
-    acumTensionCargador = 0;
-    numTensionAcum = 0;
-    consumoCargador = picoConsumoCargador;
-    consumoGeneral = picoConsumoGeneral;
-    generacionFV = picoGeneracionFV;
-    picoConsumoCargador = 0;
-    picoConsumoGeneral = 0;
-    picoGeneracionFV = 0;
-
-    consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
-    if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
-      consumoCargadorAmperios = 0;
-    }
-    consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
-    if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
-      consumoGeneralAmperios = 0;
-    }
-    generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
-    if ((generacionFVAmperios < 0) || !conFV){
-      generacionFVAmperios = 0;
-    }
+  if (actualizarDatos){
+    int tension;
+    noInterrupts();                      // Desactivamos las interrupciones
+    tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
+    interrupts();                     // Activamos las interrupciones
     
-    conectado = (tensionCargador < 660 && tensionCargador > 300);
-    cargando = (tensionCargador < 600 && tensionCargador > 300);
-    timeNow = rtc.now();
-    int horaNow = timeNow.hour();
-    int minutoNow = timeNow.minute();
-    if (horaNow >= 3 && horaNow > lastCheckHour){
-      lastCheckHour = horaNow;
-      bool tempHorarioVerano = EsHorarioVerano(timeNow);
-      if (horarioVerano && !tempHorarioVerano){
-        horaNow--;
-        horarioVerano = false;
-        rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
-        EEPROM.write(14, horarioVerano);
-      }else if (!horarioVerano && tempHorarioVerano){
-        horaNow++;
-        horarioVerano = true;
-        rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
-        EEPROM.write(14, horarioVerano);
+    acumTensionCargador += tension;
+    
+    int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
+    int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
+    int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
+    
+    if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
+      picoConsumoCargador = consumoCargadorTemp;
+    if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
+      picoConsumoGeneral = consumoGeneralTemp;
+    if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
+      picoGeneracionFV = generacionFVTemp;
+    
+    numCiclos++;
+    if (numCiclos > 299){
+      
+      tensionCargador = acumTensionCargador / numCiclos;
+      numCiclos = 0;
+      acumTensionCargador = 0;
+      consumoCargador = picoConsumoCargador;
+      consumoGeneral = picoConsumoGeneral;
+      generacionFV = picoGeneracionFV;
+      picoConsumoCargador = 0;
+      picoConsumoGeneral = 0;
+      picoGeneracionFV = 0;
+  
+      consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
+      if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
+        consumoCargadorAmperios = 0;
       }
-    }
-    if (conectado && inicioCargaActivado){
-      if (!cargando && !cargaCompleta){
-        bool puedeCargar = false;
-        switch(tipoCarga){
-          case TARIFAVALLE:
-            if (horarioVerano){
-              if (horaNow >= 23 || horaNow < 13){
-                puedeCargar = true;
-              }
-            }else{
-              if (horaNow >= 22 || horaNow < 12){
-                puedeCargar = true;
-              }
-            }
-            break;
-          case FRANJAHORARIA:
-            if (EnFranjaHoraria(horaNow, minutoNow))puedeCargar = true;
-            break;
-          case POTENCIA:
-          case FRANJATIEMPO:
-          case INMEDIATA:
-            puedeCargar = true;
-            break;
-          case EXCEDENTESFV:
-            if (HayExcedentesFV())puedeCargar = true;
-            break;
-          case INTELIGENTE:
-              if (HayExcedentesFV()){
-                tipoCargaInteligente = EXCEDENTESFV;
-                puedeCargar = true;
-              }else if (conTarifaValle){
-                if (horarioVerano){
-                  if (horaNow >= 23 || horaNow < 13){
-                    tipoCargaInteligente = TARIFAVALLE;
-                    puedeCargar = true;
-                  }
-                }else{
-                  if (horaNow >= 22 || horaNow < 12){
-                    tipoCargaInteligente = TARIFAVALLE;
-                    puedeCargar = true;
-                  }
+      consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
+      if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
+        consumoGeneralAmperios = 0;
+      }
+      generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
+      if ((generacionFVAmperios < 0) || !conFV){
+        generacionFVAmperios = 0;
+      }
+      
+      conectado = (tensionCargador < 660 && tensionCargador > 300);
+      cargando = (tensionCargador < 600 && tensionCargador > 300);
+      timeNow = rtc.now();
+      int horaNow = timeNow.hour();
+      int minutoNow = timeNow.minute();
+      if (horaNow >= 3 && horaNow > lastCheckHour){
+        lastCheckHour = horaNow;
+        bool tempHorarioVerano = EsHorarioVerano(timeNow);
+        if (horarioVerano && !tempHorarioVerano){
+          horaNow--;
+          horarioVerano = false;
+          rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+          EEPROM.write(14, horarioVerano);
+        }else if (!horarioVerano && tempHorarioVerano){
+          horaNow++;
+          horarioVerano = true;
+          rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+          EEPROM.write(14, horarioVerano);
+        }
+      }
+      if (conectado && inicioCargaActivado){
+        if (!cargando && !cargaCompleta){
+          bool puedeCargar = false;
+          switch(tipoCarga){
+            case TARIFAVALLE:
+              if (horarioVerano){
+                if (horaNow >= 23 || horaNow < 13){
+                  puedeCargar = true;
                 }
-              }else if (EnFranjaHoraria(horaNow, minutoNow)){
-                tipoCargaInteligente = FRANJAHORARIA;
-                puedeCargar = true;
+              }else{
+                if (horaNow >= 22 || horaNow < 12){
+                  puedeCargar = true;
+                }
               }
-            break;
-        }
-        if (puedeCargar && permisoCarga){
-          FinalizarCarga();
-          puedeCargar = false;
-        }
-        if (puedeCargar){
-          digitalWrite(pinAlimentacionCargador, HIGH);
+              break;
+            case FRANJAHORARIA:
+              if (EnFranjaHoraria(horaNow, minutoNow))puedeCargar = true;
+              break;
+            case POTENCIA:
+            case FRANJATIEMPO:
+            case INMEDIATA:
+              puedeCargar = true;
+              break;
+            case EXCEDENTESFV:
+              if (HayExcedentesFV())puedeCargar = true;
+              break;
+            case INTELIGENTE:
+                if (HayExcedentesFV()){
+                  tipoCargaInteligente = EXCEDENTESFV;
+                  puedeCargar = true;
+                }else if (conTarifaValle){
+                  if (horarioVerano){
+                    if (horaNow >= 23 || horaNow < 13){
+                      tipoCargaInteligente = TARIFAVALLE;
+                      puedeCargar = true;
+                    }
+                  }else{
+                    if (horaNow >= 22 || horaNow < 12){
+                      tipoCargaInteligente = TARIFAVALLE;
+                      puedeCargar = true;
+                    }
+                  }
+                }else if (EnFranjaHoraria(horaNow, minutoNow)){
+                  tipoCargaInteligente = FRANJAHORARIA;
+                  puedeCargar = true;
+                }
+              break;
+          }
+          if (puedeCargar && permisoCarga){
+            FinalizarCarga();
+            puedeCargar = false;
+          }
+          if (puedeCargar){
+            digitalWrite(pinAlimentacionCargador, HIGH);
+            duracionPulso = CalcularDuracionPulso();
+            permisoCarga = puedeCargar;
+          }
+        }else if (cargando){
+          CalcularPotencias();
           duracionPulso = CalcularDuracionPulso();
-          permisoCarga = puedeCargar;
-        }
-      }else if (cargando){
-        CalcularPotencias();
-        duracionPulso = CalcularDuracionPulso();
-        switch(tipoCarga){
-          case TARIFAVALLE:
-            if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
-              FinalizarCarga();
-            }
-            break;
-          case FRANJAHORARIA:
-            if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
-              FinalizarCarga();
-            }
-            break;
-          case POTENCIA:
-            if (watiosCargados >= (valorTipoCarga * 100)){
-              FinalizarCarga();
-            }
-            break;
-          case FRANJATIEMPO:
-              if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)){
+          switch(tipoCarga){
+            case TARIFAVALLE:
+              if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
                 FinalizarCarga();
-            }
-            break;
-          case EXCEDENTESFV:
-            permisoCarga = CheckExcedendesFV();
-            break;
-          case INTELIGENTE:
-            switch (tipoCargaInteligente){
-              case EXCEDENTESFV:
-                permisoCarga = CheckExcedendesFV();
-                break;
-              case TARIFAVALLE:
-                if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
-                  FinalizarCarga();
-                }
-                break;
-              case FRANJAHORARIA:
+              }
+              break;
+            case FRANJAHORARIA:
               if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
                 FinalizarCarga();
               }
               break;
-            }
-            break;
+            case POTENCIA:
+              if (watiosCargados >= (valorTipoCarga * 100)){
+                FinalizarCarga();
+              }
+              break;
+            case FRANJATIEMPO:
+                if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)){
+                  FinalizarCarga();
+              }
+              break;
+            case EXCEDENTESFV:
+              permisoCarga = CheckExcedendesFV();
+              break;
+            case INTELIGENTE:
+              switch (tipoCargaInteligente){
+                case EXCEDENTESFV:
+                  permisoCarga = CheckExcedendesFV();
+                  break;
+                case TARIFAVALLE:
+                  if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
+                    FinalizarCarga();
+                  }
+                  break;
+                case FRANJAHORARIA:
+                if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
+                  FinalizarCarga();
+                }
+                break;
+              }
+              break;
+          }
         }
-      }
-    }else if (!conectado && inicioCargaActivado){
-      FinalizarCarga();
-    }
-    if ((enPantallaNumero == 0 || enPantallaNumero == 10) && luzLcd){
-      ticksScreen++;
-      if (ticksScreen >= 1000){
-        updateScreen();
-        ticksScreen = 0;
+      }else if (!conectado && inicioCargaActivado){
+        FinalizarCarga();
       }
     }
+    actualizarDatos = false;
   }
 
   long actualMillis = millis();
@@ -428,6 +418,14 @@ void loop() {
       enPantallaNumero = 0;
       lcd.clear();
       lcd.setBacklight(LOW);
+    }
+  }
+
+  if ((enPantallaNumero == 0 || enPantallaNumero == 10) && luzLcd){
+    ticksScreen++;
+    if (ticksScreen >= 1000){
+      updateScreen();
+      ticksScreen = 0;
     }
   }
 }
