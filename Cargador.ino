@@ -7,18 +7,18 @@
 LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Algunas pantallas llevan por defecto la dirección 27 y otras la 3F
 
 //              DEFINICIÓN PINES ENTRADAS ANALOGICAS
-int pinGeneracionFV = 0;      // define el pin 0 como 'Generacion FV'
-int pinConsumoGeneral = 1;    // define el pin 1 como 'Consumo General'
-int pinTensionCargador = 2;   // define el pin 2 como 'Tension'
-int pinConsumoCargador = 3;   // define el pin 3 como 'Consumo Cargador'
+const int pinGeneracionFV = 0;      // define el pin 0 como 'Generacion FV'
+const int pinConsumoGeneral = 1;    // define el pin 1 como 'Consumo General'
+const int pinTensionCargador = 2;   // define el pin 2 como 'Tension'
+const int pinConsumoCargador = 3;   // define el pin 3 como 'Consumo Cargador'
 
 //              DEFINICIÓN PINES ENTRADAS DIGITALES
-int pinPulsadorInicio = 2;
-int pinPulsadorMenos = 3;
-int pinPulsadorMas = 4;
-int pinPulsadorProg = 5;
-int pinAlimentacionCargador = 6;    //Salida que activa el contactor que alimenta el cargador
-int pinRegulacionCargador = 9;      //Salida que activa la onda cuadrada
+const int pinPulsadorInicio = 2;
+const int pinPulsadorMenos = 3;
+const int pinPulsadorMas = 4;
+const int pinPulsadorProg = 5;
+const int pinAlimentacionCargador = 6;    //Salida que activa el contactor que alimenta el cargador
+const int pinRegulacionCargador = 9;      //Salida que activa la onda cuadrada
 
 //              DEFINICION TIPOS CARGA
 const int TARIFAVALLE = 0;
@@ -372,7 +372,7 @@ void loop() {
     actualizarDatos = false;
   }
 
-  long actualMillis = millis();
+  unsigned long actualMillis = millis();
   
   if (digitalRead(pinPulsadorInicio) == HIGH) {
     if (!flancoBotonInicio && (actualMillis - tiempoOffBoton > 100)){
@@ -1486,8 +1486,8 @@ long EEPROMReadlong(long address)       //    Función que permite leer un dato 
 }
 
 void MonitorizarDatos(){
-  Serial.print("Tensión Medida CP ---------> " + (String)tensionCargador + "\n");
-  Serial.print("Consumo_General Amperios --> " + (String)consumoGeneralAmperios + "\n");
+  Serial.print("Tensión Cargador(Media) ---> " + (String)tensionCargador + "\n");
+  Serial.print("Consumo General Amperios --> " + (String)consumoGeneralAmperios + "\n");
   Serial.print("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios + "\n");
   Serial.print("Generación FV Amperios ----> " + (String)generacionFVAmperios + "\n");
   Serial.print("Duracion del pulso --------> " + (String)duracionPulso + "\n");
