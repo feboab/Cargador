@@ -420,13 +420,15 @@ void loop() {
       lcd.setBacklight(LOW);
     }
   }
-
-  if ((enPantallaNumero == 0 || enPantallaNumero == 10) && luzLcd){
-    ticksScreen++;
-    if (ticksScreen >= 1000){
-      updateScreen();
-      ticksScreen = 0;
+  ticksScreen++;
+  if (ticksScreen >= 1000){
+    if (luzLcd){
+      if ((enPantallaNumero == 0 && cargando) || enPantallaNumero == 10){
+        updateScreen();
+      }
     }
+    MonitorizarDatos();
+    ticksScreen = 0;
   }
 }
 
@@ -1482,3 +1484,12 @@ long EEPROMReadlong(long address)       //    Función que permite leer un dato 
   //Return the recomposed long by using bitshift.
   return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
 }
+
+void MonitorizarDatos(){
+  Serial.print("Tensión Medida CP ---------> " + (String)tensionCargador + "\n");
+  Serial.print("Consumo_General Amperios --> " + (String)consumoGeneralAmperios + "\n");
+  Serial.print("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios + "\n");
+  Serial.print("Generación FV Amperios ----> " + (String)generacionFVAmperios + "\n");
+  Serial.print("Duracion del pulso --------> " + (String)duracionPulso + "\n");
+}
+
