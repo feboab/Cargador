@@ -40,7 +40,7 @@ byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consu
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = false, conFV = false, inicioCargaActivado = false, conTarifaValle = false, tempValorBool = false;
 unsigned long kwTotales = 0, watiosCargados = 0, acumTensionCargador = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0;
-bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionSuficiente = false, luzLcd = false, horarioVerano = false;
+bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionFVInsuficiente = false, luzLcd = false, horarioVerano = false;
 int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoPotenciaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -243,7 +243,7 @@ void loop() {
       }
       
       conectado = (tensionCargador < 660 && tensionCargador > 300);
-      cargando = (tensionCargador < 600 && tensionCargador > 300);
+      cargando = (tensionCargador < 600 && tensionCargador > 300 && permisoCarga);
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -423,7 +423,7 @@ void loop() {
   ticksScreen++;
   if (ticksScreen >= 1000){
     if (luzLcd){
-      if ((enPantallaNumero == 0 && cargando) || enPantallaNumero == 10){
+      if (enPantallaNumero == 0 || enPantallaNumero == 10){
         updateScreen();
       }
     }
@@ -434,6 +434,9 @@ void loop() {
 
 void IniciarCarga(){
   watiosCargados = 0;
+  tiempoGeneraSuficiente = millis();
+  tiempoNoGeneraSuficiente = tiempoGeneraSuficiente;
+  generacionFVInsuficiente = false;
   inicioCargaActivado = true;
   enPantallaNumero = 0;
   EEPROM.write(11, tipoCarga);
@@ -1072,9 +1075,15 @@ void updateScreen(){
           switch (tipoCarga){
             case EXCEDENTESFV:
             case INTELIGENTE:
-              lcd.print("Generacion FV");
-              lcd.setCursor(0, 1);
-              lcd.print("Insuficiente");
+              if (generacionFVInsuficiente){
+                lcd.print("Generacion FV");
+                lcd.setCursor(0, 1);
+                lcd.print("Insuficiente");
+              }else{
+                lcd.print("Comprobando");
+                lcd.setCursor(0, 1);
+                lcd.print("Generacion FV");
+              }
               break;
             case FRANJATIEMPO:
               lcd.print("Esperando Hora");
@@ -1092,15 +1101,15 @@ void updateScreen(){
           lcd.setCursor(0, 1);
           lcd.print("Conectado.");
         }
+      }else if (cargaCompleta){
+        lcd.print("Coche Cargado");
+        lcd.setCursor(0, 1);
+        lcd.print(watiosCargados / 100);
+        lcd.print(" wh");
       }else if (conectado){
         lcd.print("Coche Conectado.");
         lcd.setCursor(0, 1);
         lcd.print("A la espera...");
-      }else if (cargaCompleta){
-        lcd.print("Cargado");
-        lcd.setCursor(0, 1);
-        lcd.print(watiosCargados / 100);
-        lcd.print(" wh");
       }else{
         lcd.print(" WALLBOX FEBOAB ");
         String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
@@ -1374,11 +1383,19 @@ bool HayExcedentesFV(){
   if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
   if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
   
-  generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+  bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
   
   if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
-    tiempoNoGeneraSuficiente = currentMillis;        // comenzamos a controlar el tiempo durante el que no hay excedentes ....
-    if (currentMillis - tiempoGeneraSuficiente > 300000) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
+    tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo en el que no hay excedentes ....
+    if ((currentMillis - tiempoGeneraSuficiente) > 300000){   // Si hay excedentes durante más de 5 minutos activamos la carga
+      generacionFVInsuficiente = false;
+      return true;
+    }
+  }else{    // Si NO hay excedentes sufucientes ....
+    tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo en el que hay excedentes ....
+    if ((currentMillis - tiempoNoGeneraSuficiente) > 300000){
+      generacionFVInsuficiente = true;
+    }
   }
   return false;
 }
@@ -1388,11 +1405,11 @@ bool CheckExcedendesFV(){
   if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
   if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
   
-  generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+  bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
   
   if (!generacionSuficiente){                // Si NO hay excedentes sufucientes ....
-    tiempoGeneraSuficiente = currentMillis;         // comenzamos a controlar el tiempo durante el que hay excedentes ....
-    if (currentMillis - tiempoNoGeneraSuficiente > 300000) return false; // Si no hay excedentes durante más de 5 minutos desactivamos la carga
+    tiempoGeneraSuficiente = currentMillis;         // reseteamos el tiempo en el que hay excedentes ....
+    if ((currentMillis - tiempoNoGeneraSuficiente) > 300000) return false; // Si no hay excedentes durante más de 5 minutos desactivamos la carga
   }
   return true;
 }
