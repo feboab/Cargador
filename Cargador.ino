@@ -325,7 +325,7 @@ void loop() {
               }
               break;
             case POTENCIA:
-              if (watiosCargados >= (valorTipoCarga * 100)){
+              if ((watiosCargados / 100) >= (valorTipoCarga * 100)){
                 FinalizarCarga();
               }
               break;
@@ -1308,7 +1308,7 @@ void updateScreen(){
           (conSensorGeneral) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
         case 5:
-          lcd.print(F("Intens. Maxima:"));
+          lcd.print(F("Intensid. Carga:"));
           lcd.setCursor(6, 1);
           if (intensidadProgramada < 10)lcd.print(F(" "));
           lcd.print(intensidadProgramada);
