@@ -301,7 +301,7 @@ void loop() {
                 }
               break;
           }
-          if (puedeCargar && permisoCarga){
+          if (puedeCargar && permisoCarga && watiosCargados > 0){
             FinalizarCarga();
             puedeCargar = false;
           }
