@@ -1078,10 +1078,12 @@ void updateScreen(){
         }
         if (cargando){
           lcd.setCursor(0, 1);
-          lcd.print(F("Cargando a: "));
+          lcd.print(F("CARGA:"));
           if (consumoCargadorAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoCargadorAmperios);
-          lcd.print(F(" A"));
+          lcd.print(F("A "));
+		      lcd.print(watiosCargados / 100);
+		      lcd.print(F("WH"));
         }else if (conectado){
           switch (tipoCarga){
             case EXCEDENTESFV:
