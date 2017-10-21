@@ -38,7 +38,7 @@ const int BOTONPROG = 3;
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
-unsigned long kwTotales = 0, watiosCargados = 0, acumTensionCargador = 0;
+unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0, ticksScreen = 0;
 bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionFVInsuficiente = false, luzLcd = true, horarioVerano = true;
 int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
@@ -301,11 +301,12 @@ void loop() {
                 }
               break;
           }
-          if (puedeCargar && permisoCarga && watiosCargados > 0){
+          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){
             FinalizarCarga();
             puedeCargar = false;
           }
           if (puedeCargar){
+            tempWatiosCargados = watiosCargados;
             digitalWrite(pinAlimentacionCargador, HIGH);
             duracionPulso = CalcularDuracionPulso();
             permisoCarga = puedeCargar;
@@ -325,7 +326,7 @@ void loop() {
               }
               break;
             case POTENCIA:
-              if ((watiosCargados / 100) >= (valorTipoCarga * 100)){
+              if (watiosCargados >= (valorTipoCarga * 100)){
                 FinalizarCarga();
               }
               break;
@@ -683,10 +684,10 @@ void ProcesarBoton(int button){
             EEPROM.write(12, valorTipoCarga);
             break;
           case BOTONMAS:
-            if (tempValorInt < 50) tempValorInt += 5;
+            if (tempValorInt < 5000) tempValorInt += 500;
             break;
           case BOTONMENOS:
-            if (tempValorInt > 5) tempValorInt -= 5;
+            if (tempValorInt > 500) tempValorInt -= 500;
             break;
           case BOTONPROG:
             enPantallaNumero = 2;
@@ -1048,6 +1049,16 @@ void ProcesarBoton(int button){
   }
 }
 
+void MostrarPantallaCarga(){
+  lcd.setCursor(0, 1);
+  lcd.print(F("CARGA:"));
+  if (consumoCargadorAmperios < 10)lcd.print(F(" "));
+  lcd.print(consumoCargadorAmperios);
+  lcd.print(F("A "));
+  lcd.print(watiosCargados / 100);
+  lcd.print(F("WH"));
+}
+
 void updateScreen(){
   switch(enPantallaNumero){
     case 0:   //Pantalla principal
@@ -1077,13 +1088,7 @@ void updateScreen(){
             break;
         }
         if (cargando){
-          lcd.setCursor(0, 1);
-          lcd.print(F("CARGA:"));
-          if (consumoCargadorAmperios < 10)lcd.print(F(" "));
-          lcd.print(consumoCargadorAmperios);
-          lcd.print(F("A "));
-		      lcd.print(watiosCargados / 100);
-		      lcd.print(F("WH"));
+          MostrarPantallaCarga();
         }else if (conectado){
           switch (tipoCarga){
             case EXCEDENTESFV:
@@ -1093,7 +1098,7 @@ void updateScreen(){
                 lcd.print(F("GEN. FV INSUF.  "));
               }
               break;
-            case FRANJATIEMPO:
+            case FRANJAHORARIA:
               lcd.setCursor(0, 1);
               lcd.print(F("Ini.Carg:"));
               tempValorInt = horaInicioCarga - timeNow.hour();
@@ -1118,6 +1123,11 @@ void updateScreen(){
               if (tempValorInt < 10) lcd.print(F(" "));
               lcd.print(tempValorInt);
               lcd.print(F("m"));
+              break;
+            case FRANJATIEMPO:
+            case INMEDIATA:
+            case POTENCIA:
+              MostrarPantallaCarga();
               break;
           }
         }else{
@@ -1351,7 +1361,7 @@ void updateScreen(){
       lcd.print(F("Potencia:"));
       lcd.setCursor(5, 1);
       if (tempValorInt < 10)lcd.print(F(" "));
-      lcd.print(tempValorInt * 100);
+      lcd.print(tempValorInt);
       lcd.print(F(" w"));
       break;
     case 21:  // carga por franja de tiempo
