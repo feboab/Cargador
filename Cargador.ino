@@ -482,7 +482,7 @@ void ProcesarBoton(int button){
               DateTime timeTemp  = rtc.now();
               nuevoAnno = timeTemp.year();
               if (nuevoAnno < 2015) nuevoAnno = 2015;
-              nuevoMes = timeTemp.month() + 1;
+              nuevoMes = timeTemp.month();
               nuevoDia = timeTemp.day();
               nuevaHora = timeTemp.hour();
               nuevoMinuto = timeTemp.minute();
@@ -1056,7 +1056,7 @@ void MostrarPantallaCarga(){
   lcd.print(consumoCargadorAmperios);
   lcd.print(F("A "));
   lcd.print(watiosCargados / 100);
-  lcd.print(F("WH"));
+  lcd.print(F("Wh"));
 }
 
 void updateScreen(){
@@ -1415,7 +1415,7 @@ void updateScreen(){
     case 130:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("Ajuste año:"));
+      lcd.print(F("Ajuste a")); lcd.print(F(char)241); lcd.print(F("o:");
       lcd.setCursor(5, 1);
       lcd.print(nuevoAnno);
       break;
