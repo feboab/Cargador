@@ -101,6 +101,8 @@ void setup() {
   if (!rtc.begin()) {
     Serial.println(F("ERROR, SIN CONEX AL RELOJ\n"));
     while (1);
+  }else{
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // Para probar la hora y ver si sale correctamente le metemos la hora y fecha de la compilacion -- Borrar Despues --
   }
   
   if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
@@ -305,7 +307,7 @@ void loop() {
             FinalizarCarga();
             puedeCargar = false;
           }
-          if (puedeCargar){
+          if (puedeCargar && !permisoCarga){
             tempWatiosCargados = watiosCargados;
             digitalWrite(pinAlimentacionCargador, HIGH);
             duracionPulso = CalcularDuracionPulso();
@@ -336,12 +338,18 @@ void loop() {
               }
               break;
             case EXCEDENTESFV:
-              permisoCarga = CheckExcedendesFV();
+              if (!HayExcedentesFV()){
+                permisoCarga = false;
+                digitalWrite(pinAlimentacionCargador, LOW);
+              }
               break;
             case INTELIGENTE:
               switch (tipoCargaInteligente){
                 case EXCEDENTESFV:
-                  permisoCarga = CheckExcedendesFV();
+                  if (!HayExcedentesFV()){
+                    permisoCarga = false;
+                    digitalWrite(pinAlimentacionCargador, LOW);
+                  }
                   break;
                 case TARIFAVALLE:
                   if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
@@ -349,10 +357,10 @@ void loop() {
                   }
                   break;
                 case FRANJAHORARIA:
-                if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
-                  FinalizarCarga();
-                }
-                break;
+                  if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
+                    FinalizarCarga();
+                  }
+                  break;
               }
               break;
           }
@@ -481,8 +489,8 @@ void ProcesarBoton(int button){
             }else{
               DateTime timeTemp  = rtc.now();
               nuevoAnno = timeTemp.year();
-              if (nuevoAnno < 2015) nuevoAnno = 2015;
-              nuevoMes = timeTemp.month();
+              if (nuevoAnno < 2017) nuevoAnno = 2017;
+              nuevoMes = timeTemp.month() + 1;
               nuevoDia = timeTemp.day();
               nuevaHora = timeTemp.hour();
               nuevoMinuto = timeTemp.minute();
@@ -980,11 +988,17 @@ void ProcesarBoton(int button){
             enPantallaNumero = 133;
             break;
           case BOTONMAS:
-            (nuevoDia >= daysInMonth[nuevoMes - 1]) ? nuevoDia = 1 : nuevoDia++;
-            break;
+            {
+              byte dias = (nuevoMes == 2) ? 28 + AnnoBisiesto(nuevoAnno) : daysInMonth[nuevoMes - 1];
+              (nuevoDia >= dias) ? nuevoDia = 1 : nuevoDia++;
+              break;
+            }
           case BOTONMENOS:
-            (nuevoDia <= 1) ? nuevoDia = daysInMonth[nuevoMes - 1] : nuevoDia--;
-            break;
+            {
+              byte dias = (nuevoMes == 2) ? 28 + AnnoBisiesto(nuevoAnno) : daysInMonth[nuevoMes - 1];
+              (nuevoDia <= 1) ? nuevoDia = dias : nuevoDia--;
+              break;
+            }
           case BOTONPROG:
             opcionNumero = 2;
             enPantallaNumero = 1;
@@ -1013,7 +1027,7 @@ void ProcesarBoton(int button){
       case 134:    //Ajuste de los minutos
         switch (button){
           case BOTONINICIO:
-            rtc.adjust(DateTime(nuevoAnno, nuevoMes, nuevoDia, nuevaHora, nuevoMinuto, 0));
+            rtc.adjust(DateTime(nuevoAnno, nuevoMes - 1, nuevoDia, nuevaHora, nuevoMinuto, 0));
             enPantallaNumero = 135;
             break;
           case BOTONMAS:
@@ -1415,7 +1429,7 @@ void updateScreen(){
     case 130:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("Ajuste a")); lcd.print(F(char)241); lcd.print(F("o:");
+      lcd.print(F("Ajuste a")); lcd.print((char)241); lcd.print(F("o:"));
       lcd.setCursor(5, 1);
       lcd.print(nuevoAnno);
       break;
@@ -1493,23 +1507,11 @@ bool HayExcedentesFV(){
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo en el que hay excedentes ....
     if ((currentMillis - tiempoNoGeneraSuficiente) > 300000){
       generacionFVInsuficiente = true;
+    }else{
+      return true;
     }
   }
   return false;
-}
-
-bool CheckExcedendesFV(){
-  unsigned long currentMillis = millis();
-  if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
-  if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
-  
-  bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
-  
-  if (!generacionSuficiente){                // Si NO hay excedentes sufucientes ....
-    tiempoGeneraSuficiente = currentMillis;         // reseteamos el tiempo en el que hay excedentes ....
-    if ((currentMillis - tiempoNoGeneraSuficiente) > 300000) return false; // Si no hay excedentes durante más de 5 minutos desactivamos la carga
-  }
-  return true;
 }
 
 bool EnFranjaHoraria(int horaNow, int minutoNow){
@@ -1606,5 +1608,10 @@ void MonitorizarDatos(){
   Serial.print("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios + "\n");
   Serial.print("Generación FV Amperios ----> " + (String)generacionFVAmperios + "\n");
   Serial.print("Duracion del pulso --------> " + (String)duracionPulso + "\n");
+}
+
+bool AnnoBisiesto(unsigned int ano)
+{
+  return ano%4==0&&(ano%100!=0||ano%400==0);
 }
 
