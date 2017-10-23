@@ -35,7 +35,7 @@ const int BOTONMENOS = 2;
 const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
-volatile int volatileTension;
+volatile int volatileTension, volatileConsumoCargador, volatileConsumoGeneral, volatileGeneracionFV;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0;
@@ -198,16 +198,16 @@ void loop() {
     
     acumTensionCargador += tension;
     
-    int consumoCargadorTemp = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
-    int consumoGeneralTemp = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-    int generacionFVTemp = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
+    volatileConsumoCargador = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
+    volatileConsumoGeneral = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
+    volatileGeneracionFV = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
     
-    if (consumoCargadorTemp > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
-      picoConsumoCargador = consumoCargadorTemp;
-    if (consumoGeneralTemp > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
-      picoConsumoGeneral = consumoGeneralTemp;
-    if (generacionFVTemp > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
-      picoGeneracionFV = generacionFVTemp;
+    if (volatileConsumoCargador > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
+      picoConsumoCargador = volatileConsumoCargador;
+    if (volatileConsumoGeneral > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
+      picoConsumoGeneral = volatileConsumoGeneral;
+    if (volatileGeneracionFV > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
+      picoGeneracionFV = volatileGeneracionFV;
     
     numCiclos++;
     if (numCiclos > 299){
@@ -307,23 +307,23 @@ void loop() {
             FinalizarCarga();
             puedeCargar = false;
           }
-          if (puedeCargar && !permisoCarga){
+          if (puedeCargar){
             tempWatiosCargados = watiosCargados;
             digitalWrite(pinAlimentacionCargador, HIGH);
             duracionPulso = CalcularDuracionPulso();
-            permisoCarga = puedeCargar;
+            permisoCarga = true;
           }
         }else if (cargando){
           CalcularPotencias();
           duracionPulso = CalcularDuracionPulso();
           switch(tipoCarga){
             case TARIFAVALLE:
-              if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
+              if ((!horarioVerano && horaNow >= 12 && horaNow < 22) || (horarioVerano && horaNow >= 13 && horaNow < 23)){
                 FinalizarCarga();
               }
               break;
             case FRANJAHORARIA:
-              if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
+              if (!EnFranjaHoraria(horaNow, minutoNow)){
                 FinalizarCarga();
               }
               break;
@@ -352,12 +352,12 @@ void loop() {
                   }
                   break;
                 case TARIFAVALLE:
-                  if ((!horarioVerano && horaNow >= 12) || (horarioVerano && horaNow >= 13)){
+                  if ((!horarioVerano && horaNow >= 12 && horaNow < 22) || (horarioVerano && horaNow >= 13 && horaNow < 23)){
                     FinalizarCarga();
                   }
                   break;
                 case FRANJAHORARIA:
-                  if (horaFinCarga < horaNow || (horaFinCarga == horaNow &&  minutoFinCarga <= minutoNow)){
+                  if (!EnFranjaHoraria(horaNow, minutoNow)){
                     FinalizarCarga();
                   }
                   break;
@@ -525,7 +525,7 @@ void ProcesarBoton(int button){
               case POTENCIA:
                 enPantallaNumero = 20;
                 if (tipoCarga == POTENCIA) tempValorInt = valorTipoCarga;
-                else tempValorInt = 5;
+                else tempValorInt = 500;
                 break;
               case FRANJATIEMPO:
                 enPantallaNumero = 21;
@@ -692,7 +692,7 @@ void ProcesarBoton(int button){
             EEPROM.write(12, valorTipoCarga);
             break;
           case BOTONMAS:
-            if (tempValorInt < 5000) tempValorInt += 500;
+            if (tempValorInt < 20000) tempValorInt += 500;
             break;
           case BOTONMENOS:
             if (tempValorInt > 500) tempValorInt -= 500;
@@ -1113,31 +1113,42 @@ void updateScreen(){
               }
               break;
             case FRANJAHORARIA:
-              lcd.setCursor(0, 1);
-              lcd.print(F("Ini.Carg:"));
-              tempValorInt = horaInicioCarga - timeNow.hour();
-              if (tempValorInt < 10) lcd.print(F(" "));
-              lcd.print(tempValorInt);
-              lcd.print(F("h "));
-              tempValorInt = (minutoInicioCarga == 0) ? 60 : minutoInicioCarga;
-              tempValorInt -= timeNow.minute();
-              if (tempValorInt < 10) lcd.print(F(" "));
-              lcd.print(tempValorInt);
-              lcd.print(F("m"));
-              break;
+              {
+                lcd.setCursor(0, 1);
+                lcd.print(F("Ini.Carg:"));
+                int tempMinutos = (timeNow.hour() * 60) +  timeNow.minute();
+                int minutosCarga = (horaInicioCarga * 60) + minutoInicioCarga;
+                if (tempMinutos > minutosCarga) minutosCarga += 1440;
+                tempMinutos = minutosCarga - tempMinutos;
+                int horas = tempMinutos / 60;
+                int minutos = tempMinutos % 60;
+                if (horas < 10) lcd.print(F(" "));
+                lcd.print(horas);
+                lcd.print(F("h "));
+                if (minutos < 10) lcd.print(F(" "));
+                lcd.print(minutos);
+                lcd.print(F("m"));
+                break;
+              }
             case TARIFAVALLE:
-              lcd.setCursor(0, 1);
-              lcd.print(F("Ini.Carg:"));
-              tempValorInt = (horarioVerano) ? 23 : 22;
-              tempValorInt -= timeNow.hour();
-              if (tempValorInt < 10) lcd.print(F(" "));
-              lcd.print(tempValorInt);
-              lcd.print(F("h "));
-              tempValorInt = 60 - timeNow.minute();
-              if (tempValorInt < 10) lcd.print(F(" "));
-              lcd.print(tempValorInt);
-              lcd.print(F("m"));
-              break;
+              {
+                lcd.setCursor(0, 1);
+                lcd.print(F("Ini.Carg:"));
+                int tempMinutos = (timeNow.hour() * 60) +  timeNow.minute();
+                int minutosCarga = (horarioVerano) ? 23 : 22;
+                minutosCarga *= 60;
+                if (tempMinutos > minutosCarga) minutosCarga += 1440;
+                tempMinutos = minutosCarga - tempMinutos;
+                int horas = tempMinutos / 60;
+                int minutos = tempMinutos % 60;
+                if (horas < 10) lcd.print(F(" "));
+                lcd.print(horas);
+                lcd.print(F("h "));
+                if (minutos < 10) lcd.print(F(" "));
+                lcd.print(minutos);
+                lcd.print(F("m"));
+                break;
+              }
             case FRANJATIEMPO:
             case INMEDIATA:
             case POTENCIA:
