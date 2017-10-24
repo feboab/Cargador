@@ -101,9 +101,11 @@ void setup() {
   if (!rtc.begin()) {
     Serial.println(F("ERROR, SIN CONEX AL RELOJ\n"));
     while (1);
-    }//else{
-//    rtc.adjust(DateTime(F(__DATE__), F(__TIME__))); // Para probar la hora y ver si sale correctamente le metemos la hora y fecha de la compilacion -- Borrar Despues --
-//  }
+  }
+	
+  if (rtc.lostPower()) {
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }
   
   if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
     horaInicioCarga = 0;
@@ -169,7 +171,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.18 ****"));
+  lcd.print(F("**** V 1.19 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -260,15 +262,7 @@ void loop() {
           bool puedeCargar = false;
           switch(tipoCarga){
             case TARIFAVALLE:
-              if (horarioVerano){
-                if (horaNow >= 23 || horaNow < 13){
-                  puedeCargar = true;
-                }
-              }else{
-                if (horaNow >= 22 || horaNow < 12){
-                  puedeCargar = true;
-                }
-              }
+              if (EnTarifaValle(horaNow)) puedeCargar = true;
               break;
             case FRANJAHORARIA:
               if (EnFranjaHoraria(horaNow, minutoNow))puedeCargar = true;
@@ -286,17 +280,10 @@ void loop() {
                   tipoCargaInteligente = EXCEDENTESFV;
                   puedeCargar = true;
                 }else if (conTarifaValle){
-                  if (horarioVerano){
-                    if (horaNow >= 23 || horaNow < 13){
-                      tipoCargaInteligente = TARIFAVALLE;
-                      puedeCargar = true;
-                    }
-                  }else{
-                    if (horaNow >= 22 || horaNow < 12){
-                      tipoCargaInteligente = TARIFAVALLE;
-                      puedeCargar = true;
-                    }
-                  }
+                  if (EnTarifaValle(horaNow)){
+                    tipoCargaInteligente = TARIFAVALLE;
+                    puedeCargar = true;
+				  }
                 }else if (EnFranjaHoraria(horaNow, minutoNow)){
                   tipoCargaInteligente = FRANJAHORARIA;
                   puedeCargar = true;
@@ -318,24 +305,16 @@ void loop() {
           duracionPulso = CalcularDuracionPulso();
           switch(tipoCarga){
             case TARIFAVALLE:
-              if ((!horarioVerano && horaNow >= 12 && horaNow < 22) || (horarioVerano && horaNow >= 13 && horaNow < 23)){
-                FinalizarCarga();
-              }
+              if (!EnTarifaValle(horaNow)) FinalizarCarga();
               break;
             case FRANJAHORARIA:
-              if (!EnFranjaHoraria(horaNow, minutoNow)){
-                FinalizarCarga();
-              }
+              if (!EnFranjaHoraria(horaNow, minutoNow)) FinalizarCarga();
               break;
             case ENERGIA:
-              if (watiosCargados >= (valorTipoCarga * 100)){
-                FinalizarCarga();
-              }
+              if (watiosCargados >= (valorTipoCarga * 100)) FinalizarCarga();
               break;
             case FRANJATIEMPO:
-                if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)){
-                  FinalizarCarga();
-              }
+              if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
               if (!HayExcedentesFV()){
@@ -352,14 +331,10 @@ void loop() {
                   }
                   break;
                 case TARIFAVALLE:
-                  if ((!horarioVerano && horaNow >= 12 && horaNow < 22) || (horarioVerano && horaNow >= 13 && horaNow < 23)){
-                    FinalizarCarga();
-                  }
+                  if (!EnTarifaValle(horaNow)) FinalizarCarga();
                   break;
                 case FRANJAHORARIA:
-                  if (!EnFranjaHoraria(horaNow, minutoNow)){
-                    FinalizarCarga();
-                  }
+                  if (!EnFranjaHoraria(horaNow, minutoNow)) FinalizarCarga();
                   break;
               }
               break;
@@ -490,7 +465,7 @@ void ProcesarBoton(int button){
               DateTime timeTemp  = rtc.now();
               nuevoAnno = timeTemp.year();
               if (nuevoAnno < 2017) nuevoAnno = 2017;
-              nuevoMes = timeTemp.month() + 1;
+              nuevoMes = timeTemp.month();
               nuevoDia = timeTemp.day();
               nuevaHora = timeTemp.hour();
               nuevoMinuto = timeTemp.minute();
@@ -1027,7 +1002,7 @@ void ProcesarBoton(int button){
       case 134:    //Ajuste de los minutos
         switch (button){
           case BOTONINICIO:
-            rtc.adjust(DateTime(nuevoAnno, nuevoMes - 1, nuevoDia, nuevaHora, nuevoMinuto, 0));
+            rtc.adjust(DateTime(nuevoAnno, nuevoMes, nuevoDia, nuevaHora, nuevoMinuto, 0));
             enPantallaNumero = 135;
             break;
           case BOTONMAS:
@@ -1061,16 +1036,6 @@ void ProcesarBoton(int button){
     luzLcd = true;
     lcd.setBacklight(HIGH);
   }
-}
-
-void MostrarPantallaCarga(){
-  lcd.setCursor(0, 1);
-  lcd.print(F("CARGA:"));
-  if (consumoCargadorAmperios < 10)lcd.print(F(" "));
-  lcd.print(consumoCargadorAmperios);
-  lcd.print(F("A "));
-  lcd.print(watiosCargados / 100);
-  lcd.print(F("Wh"));
 }
 
 void updateScreen(){
@@ -1113,42 +1078,17 @@ void updateScreen(){
               }
               break;
             case FRANJAHORARIA:
-              {
-                lcd.setCursor(0, 1);
-                lcd.print(F("INI.CARG:"));
-                int tempMinutos = (timeNow.hour() * 60) +  timeNow.minute();
-                int minutosCarga = (horaInicioCarga * 60) + minutoInicioCarga;
-                if (tempMinutos > minutosCarga) minutosCarga += 1440;
-                tempMinutos = minutosCarga - tempMinutos;
-                int horas = tempMinutos / 60;
-                int minutos = tempMinutos % 60;
-                if (horas < 10) lcd.print(F(" "));
-                lcd.print(horas);
-                lcd.print(F("H "));
-                if (minutos < 10) lcd.print(F(" "));
-                lcd.print(minutos);
-                lcd.print(F("M"));
-                break;
-              }
+              lcd.setCursor(0, 1);
+              lcd.print(F("INI.CARG:"));
+              tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
+              MostrarTiempoRestante(tempValorInt);
+              break;
             case TARIFAVALLE:
-              {
-                lcd.setCursor(0, 1);
-                lcd.print(F("INI.CARG:"));
-                int tempMinutos = (timeNow.hour() * 60) +  timeNow.minute();
-                int minutosCarga = (horarioVerano) ? 23 : 22;
-                minutosCarga *= 60;
-                if (tempMinutos > minutosCarga) minutosCarga += 1440;
-                tempMinutos = minutosCarga - tempMinutos;
-                int horas = tempMinutos / 60;
-                int minutos = tempMinutos % 60;
-                if (horas < 10) lcd.print(F(" "));
-                lcd.print(horas);
-                lcd.print(F("H "));
-                if (minutos < 10) lcd.print(F(" "));
-                lcd.print(minutos);
-                lcd.print(F("M"));
-                break;
-              }
+              lcd.setCursor(0, 1);
+              lcd.print(F("INI.CARG:"));
+              tempValorInt = (horarioVerano) ? 1380 : 1320;
+              MostrarTiempoRestante(tempValorInt);
+              break;
             case FRANJATIEMPO:
             case INMEDIATA:
             case ENERGIA:
@@ -1486,6 +1426,30 @@ void updateScreen(){
   }  
 }
 
+void MostrarPantallaCarga(){
+  lcd.setCursor(0, 1);
+  lcd.print(F("CARGA:"));
+  if (consumoCargadorAmperios < 10)lcd.print(F(" "));
+  lcd.print(consumoCargadorAmperios);
+  lcd.print(F("A "));
+  lcd.print(watiosCargados / 100);
+  lcd.print(F("Wh"));
+}
+
+void MostrarTiempoRestante(int minutosRestantes){
+  int minutosNow = (timeNow.hour() * 60) + timeNow.minute();
+  if (minutosRestantes < minutosNow) minutosRestantes += 1440;
+  minutosRestantes -= minutosNow;
+  int horas = minutosRestantes / 60;
+  int minutos = minutosRestantes % 60;
+  if (horas < 10) lcd.print(F(" "));
+  lcd.print(horas);
+  lcd.print(F("H "));
+  if (minutos < 10) lcd.print(F(" "));
+  lcd.print(minutos);
+  lcd.print(F("M"));
+}
+
 bool EsHorarioVerano(DateTime fecha){
   if (fecha.month() > 2 && fecha.month() < 9){
     return true;
@@ -1523,6 +1487,10 @@ bool HayExcedentesFV(){
     }
   }
   return false;
+}
+
+bool EnTarifaValle(int horaNow){
+  return (horarioVerano && (horaNow >= 23 || horaNow < 13)) || (!horarioVerano && (horaNow >= 22 || horaNow < 12));
 }
 
 bool EnFranjaHoraria(int horaNow, int minutoNow){
@@ -1621,8 +1589,7 @@ void MonitorizarDatos(){
   Serial.print("Duracion del pulso --------> " + (String)duracionPulso + "\n");
 }
 
-bool AnnoBisiesto(unsigned int ano)
-{
+bool AnnoBisiesto(unsigned int ano){
   return ano%4==0&&(ano%100!=0||ano%400==0);
 }
 
