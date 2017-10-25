@@ -285,7 +285,7 @@ void loop() {
                   if (EnTarifaValle(horaNow)){
                     tipoCargaInteligente = TARIFAVALLE;
                     puedeCargar = true;
-				  }
+				          }
                 }else if (EnFranjaHoraria(horaNow, minutoNow)){
                   tipoCargaInteligente = FRANJAHORARIA;
                   puedeCargar = true;
@@ -399,11 +399,7 @@ void loop() {
   }
   ticksScreen++;
   if (ticksScreen >= 3000){
-    if (luzLcd){
-      if (enPantallaNumero == 0 || enPantallaNumero == 10){
-        updateScreen();
-      }
-    }
+    if (luzLcd && (enPantallaNumero == 0 || enPantallaNumero == 10)) updateScreen();
     MonitorizarDatos();
     ticksScreen = 0;
   }
@@ -1457,14 +1453,14 @@ void MostrarTiempoRestante(int minutosRestantes){
 }
 
 bool EsHorarioVerano(DateTime fecha){
-  if (fecha.month() > 2 && fecha.month() < 9){
+  if (fecha.month() > 3 && fecha.month() < 10){
     return true;
   }else{
     //el último domingo de Marzo
-    int dhv = daysInMonth[2] - DateTime(fecha.year(), 2, daysInMonth[2]).dayOfTheWeek();
+    int dhv = daysInMonth[2] - DateTime(fecha.year(), 3, daysInMonth[2]).dayOfTheWeek();
     //el último domingo de Octubre
-    int dhi = daysInMonth[9] - DateTime(fecha.year(), 9, daysInMonth[9]).dayOfTheWeek();
-    if ((fecha.month() == 2  && fecha.day() >= dhv) || (fecha.month() == 9 && fecha.day() < dhi)){
+    int dhi = daysInMonth[9] - DateTime(fecha.year(), 10, daysInMonth[9]).dayOfTheWeek();
+    if ((fecha.month() == 3  && fecha.day() >= dhv) || (fecha.month() == 10 && fecha.day() < dhi)){
       return true;
     }
   }
@@ -1596,6 +1592,6 @@ void MonitorizarDatos(){
 }
 
 bool AnnoBisiesto(unsigned int ano){
-  return ano%4==0&&(ano%100!=0||ano%400==0);
+  return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
 }
 
