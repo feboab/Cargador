@@ -25,7 +25,7 @@ const int TARIFAVALLE = 0;
 const int FRANJAHORARIA = 1;
 const int INMEDIATA = 2;
 const int ENERGIA = 3;
-const int FRANJATIEMPO = 4;
+const int TIEMPO = 4;
 const int EXCEDENTESFV = 5;
 const int INTELIGENTE = 6;
 
@@ -48,6 +48,7 @@ byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, n
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
 
+byte enheM[8] = { B00100, B10001, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
 
 const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
@@ -92,7 +93,8 @@ void setup() {
   horarioVerano = EEPROM.read(14);
   kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, direcciones 15, 16, 17 y 18.
 
-  lcd.begin(16, 2); //Iniciaclización de la Pantalla LCD
+  lcd.createChar(0, enheM); //Creamos el nuevo carácter Ñ
+  lcd.begin(16, 2); //Inicialización de la Pantalla LCD
   lcd.setBacklight(HIGH);
   luzLcd = true;
   
@@ -107,7 +109,7 @@ void setup() {
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
   }
   
-  if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da un valor alto, así que se asignan valores normales
+  if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da valores nó válidos, así que se asignan valores predeterminados
     horaInicioCarga = 0;
     EEPROM.write(0, horaInicioCarga);
     cargadorEnConsumoGeneral = true;
@@ -202,17 +204,17 @@ void loop() {
     
     volatileConsumoCargador = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
     volatileConsumoGeneral = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-    volatileGeneracionFV = analogRead(pinGeneracionFV);      // Leemos la generación de la instalación fotovoltaica
+    volatileGeneracionFV = analogRead(pinGeneracionFV);        // Leemos la generación de la instalación fotovoltaica
     
-    if (volatileConsumoCargador > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 300 lecturas
+    if (volatileConsumoCargador > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 1000 lecturas
       picoConsumoCargador = volatileConsumoCargador;
-    if (volatileConsumoGeneral > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 300 lecturas
+    if (volatileConsumoGeneral > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 1000 lecturas
       picoConsumoGeneral = volatileConsumoGeneral;
-    if (volatileGeneracionFV > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 300 lecturas
+    if (volatileGeneracionFV > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 1000 lecturas
       picoGeneracionFV = volatileGeneracionFV;
     
     numCiclos++;
-    if (numCiclos > 299){
+    if (numCiclos > 999){
       
       tensionCargador = acumTensionCargador / numCiclos;
       numCiclos = 0;
@@ -232,13 +234,13 @@ void loop() {
       if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
         consumoGeneralAmperios = 0;
       }
-      generacionFVAmperios = ((generacionFV - 135) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (RSM)
+      generacionFVAmperios = ((generacionFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
       if ((generacionFVAmperios < 0) || !conFV){
         generacionFVAmperios = 0;
       }
       
-      conectado = (tensionCargador < 660 && tensionCargador > 300);
-      cargando = (tensionCargador < 600 && tensionCargador > 300 && permisoCarga);
+      conectado = (tensionCargador < 660 && tensionCargador > 500);
+      cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -268,7 +270,7 @@ void loop() {
               if (EnFranjaHoraria(horaNow, minutoNow))puedeCargar = true;
               break;
             case ENERGIA:
-            case FRANJATIEMPO:
+            case TIEMPO:
             case INMEDIATA:
               puedeCargar = true;
               break;
@@ -313,7 +315,7 @@ void loop() {
             case ENERGIA:
               if (watiosCargados >= (valorTipoCarga * 100)) FinalizarCarga();
               break;
-            case FRANJATIEMPO:
+            case TIEMPO:
               if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
@@ -502,9 +504,9 @@ void ProcesarBoton(int button){
                 if (tipoCarga == ENERGIA) tempValorInt = valorTipoCarga;
                 else tempValorInt = 500;
                 break;
-              case FRANJATIEMPO:
+              case TIEMPO:
                 enPantallaNumero = 21;
-                if (tipoCarga == FRANJATIEMPO) tempValorInt = valorTipoCarga;
+                if (tipoCarga == TIEMPO) tempValorInt = valorTipoCarga;
                 else tempValorInt = 30;
                 break;
               case INMEDIATA:
@@ -681,7 +683,7 @@ void ProcesarBoton(int button){
       case 21:    // seleccion de tiempo de carga
         switch (button){
           case BOTONINICIO:
-            tipoCarga = FRANJATIEMPO;
+            tipoCarga = TIEMPO;
             valorTipoCarga = tempValorInt;
             IniciarCarga();
             EEPROM.write(12, valorTipoCarga);
@@ -1045,7 +1047,7 @@ void updateScreen(){
       if (inicioCargaActivado){
         switch (tipoCarga){
           case TARIFAVALLE:
-            lcd.print(F("TC:    TARIFA DH"));
+            lcd.print(F("TC:  TARIFA D.H."));
             break;
           case FRANJAHORARIA:
             lcd.print(F("TC:   F. HORARIA"));
@@ -1056,7 +1058,7 @@ void updateScreen(){
           case ENERGIA:
             lcd.print(F("TC:      ENERGIA"));
             break;
-          case FRANJATIEMPO:
+          case TIEMPO:
             lcd.print(F("TC:       TIEMPO"));
             break;
           case EXCEDENTESFV:
@@ -1089,7 +1091,7 @@ void updateScreen(){
               tempValorInt = (horarioVerano) ? 1380 : 1320;
               MostrarTiempoRestante(tempValorInt);
               break;
-            case FRANJATIEMPO:
+            case TIEMPO:
             case INMEDIATA:
             case ENERGIA:
               MostrarPantallaCarga();
@@ -1103,7 +1105,7 @@ void updateScreen(){
         lcd.print(F("CARGA COMPLETA  "));
         lcd.setCursor(0, 1);
         lcd.print(watiosCargados / 100);
-        lcd.print(F(" Wh          "));
+        lcd.print(F(" Wh            "));
       }else if (conectado){
         lcd.print(F("COCHE CONECTADO "));
         lcd.setCursor(0, 1);
@@ -1151,7 +1153,7 @@ void updateScreen(){
         case ENERGIA:
           lcd.print(F("POR ENERGIA"));
           break;
-        case FRANJATIEMPO:
+        case TIEMPO:
           lcd.print(F("POR TIEMPO"));
           break;
         case INMEDIATA:
@@ -1202,7 +1204,7 @@ void updateScreen(){
           (conectado) ? lcd.print(F("       SI       ")) : lcd.print(F("       NO       "));
           break;
         case 3:
-          lcd.print(F("COCHE CARGADO: "));
+          lcd.print(F("COCHE CARGANDO: "));
           lcd.setCursor(0, 1);
           (cargando) ? lcd.print(F("       SI       ")) : lcd.print(F("       NO       "));
           break;
@@ -1217,35 +1219,39 @@ void updateScreen(){
         case 5:
           lcd.print(F("INTENSID. CARGA:"));
           lcd.setCursor(0, 1);
-          lcd.print(F("       "));
+          lcd.print(F("   "));
           if (consumoCargadorAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoCargadorAmperios);
-          lcd.print(F(" A     "));
+          lcd.print(F(" A ("));
+          lcd.print(volatileConsumoCargador); // se añade la lectura directa del pin A3
+          lcd.print(F(")   "));
           break;
         case 6:
           lcd.print(F("EXCEDENTES FV:  "));
           lcd.setCursor(0, 1);
-          lcd.print(F("       "));
+          lcd.print(F("   "));
           if (generacionFVAmperios < 10)lcd.print(F(" "));
           lcd.print(generacionFVAmperios);
-          lcd.print(F(" A     "));
+          lcd.print(F(" A ("));
+          lcd.print(volatileGeneracionFV); // se añade la lectura directa del pin A0
+          lcd.print(F(")   "));
           break;
         case 7:
           lcd.print(F("CONSUMO GENERAL:"));
           lcd.setCursor(0, 1);
-          lcd.print(F("       "));
+          lcd.print(F("   "));
           if (consumoGeneralAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoGeneralAmperios);
-          lcd.print(F(" A     "));
+          lcd.print(F(" A ("));
+          lcd.print(volatileConsumoGeneral); // se añade la lectura directa del pin A1
+          lcd.print(F(")   "));
           break;
         case 8:
           lcd.print(F("TENSION MEDIDA: "));
           lcd.setCursor(0, 1);
           lcd.print(F("      "));
-          if (tensionCargador < 100) lcd.print(F(" "));
-          if (tensionCargador == 0) lcd.print(F(" "));
           lcd.print(tensionCargador);
-          lcd.print(F(" V     "));
+          if (tensionCargador < 500)lcd.print(F("  ERROR"));
           break;
       }
       break;
@@ -1380,7 +1386,7 @@ void updateScreen(){
     case 130:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("AJUSTE A")); lcd.print((char)209); lcd.print(F("O:"));
+      lcd.print(F("AJUSTE A")); lcd.write (byte (0)); lcd.print(F("O:"));
       lcd.setCursor(5, 1);
       lcd.print(nuevoAnno);
       break;
@@ -1444,10 +1450,10 @@ void MostrarTiempoRestante(int minutosRestantes){
   int minutos = minutosRestantes % 60;
   if (horas < 10) lcd.print(F(" "));
   lcd.print(horas);
-  lcd.print(F("H "));
+  lcd.print(F("h "));
   if (minutos < 10) lcd.print(F(" "));
   lcd.print(minutos);
-  lcd.print(F("M"));
+  lcd.print(F("m"));
 }
 
 bool EsHorarioVerano(DateTime fecha){
