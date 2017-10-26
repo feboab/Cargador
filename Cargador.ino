@@ -48,7 +48,7 @@ byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, n
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
 
-byte enheM[8] = { B00100, B10001, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
+byte enheM[8] = { B00101, B01010, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
 
 const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
@@ -94,8 +94,7 @@ void setup() {
   kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, direcciones 15, 16, 17 y 18.
 	
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
-  lcd.createChar(0, enheM); //Creamos el nuevo carácter Ñ
-
+  lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
   lcd.setBacklight(HIGH);
   luzLcd = true;
   
@@ -1383,7 +1382,7 @@ void updateScreen(){
     case 130:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("AJUSTE A")); lcd.write(0); lcd.print(F("O:"));
+      lcd.print(F("AJUSTE A")); lcd.write(1); lcd.print(F("O:"));
       lcd.setCursor(5, 1);
       lcd.print(nuevoAnno);
       break;
@@ -1531,11 +1530,15 @@ void CalcularEnergias(){
 
 int CalcularDuracionPulso(){
   int pulso;
-  int consumo = ObtenerConsumoRestante();
-  if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la intensidad programada y tenemos el sensor general conectado..
-    pulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+  if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
+    pulso = ((generacionFVAmperios * 100 / 6) - 28);
   }else{
-    pulso = ((intensidadProgramada * 100 / 6) - 28);
+    int consumo = ObtenerConsumoRestante();
+    if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la intensidad programada y tenemos el sensor general conectado..
+      pulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+    }else{
+      pulso = ((intensidadProgramada * 100 / 6) - 28);
+    }
   }
   if (pulso < 72) pulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   return pulso;
