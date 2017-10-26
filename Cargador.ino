@@ -38,8 +38,8 @@ const int BOTONPROG = 3;
 volatile int volatileTension, volatileConsumoCargador, volatileConsumoGeneral, volatileGeneracionFV;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
-unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0;
-int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, valorTipoCarga = 0, tempValorInt = 0, ticksScreen = 0;
+unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, valorTipoCarga = 0;
+int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionFVInsuficiente = false, luzLcd = true, horarioVerano = true;
 int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
@@ -92,9 +92,10 @@ void setup() {
   inicioCargaActivado = EEPROM.read(13);
   horarioVerano = EEPROM.read(14);
   kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, direcciones 15, 16, 17 y 18.
-
-  lcd.createChar(0, enheM); //Creamos el nuevo carácter Ñ
+	
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
+  lcd.createChar(0, enheM); //Creamos el nuevo carácter Ñ
+
   lcd.setBacklight(HIGH);
   luzLcd = true;
   
@@ -313,10 +314,10 @@ void loop() {
               if (!EnFranjaHoraria(horaNow, minutoNow)) FinalizarCarga();
               break;
             case ENERGIA:
-              if (watiosCargados >= (valorTipoCarga * 100)) FinalizarCarga();
+              if (watiosCargados >= (valorTipoCarga * 100l)) FinalizarCarga();
               break;
             case TIEMPO:
-              if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000)) FinalizarCarga();
+              if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
               if (!HayExcedentesFV()){
@@ -1382,7 +1383,7 @@ void updateScreen(){
     case 130:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("AJUSTE A")); lcd.write (byte (0)); lcd.print(F("O:"));
+      lcd.print(F("AJUSTE A")); lcd.write(0); lcd.print(F("O:"));
       lcd.setCursor(5, 1);
       lcd.print(nuevoAnno);
       break;
