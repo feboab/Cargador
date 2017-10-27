@@ -48,7 +48,7 @@ byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, n
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
 
-byte enheM[8] = { B01110, B10001, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
+byte enheM[8] = { B01110, B00000, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
 
 const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
