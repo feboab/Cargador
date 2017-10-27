@@ -1221,7 +1221,7 @@ void updateScreen(){
           lcd.print(F(" A ("));
           lcd.print(volatileConsumoCargador); // se añade la lectura directa del pin A3
           lcd.print(F(" / "));
-	  lcd.print(picoConsumoCargador)") // se añade la lectura del pico de intensidad (picoConsumoCargador)
+	  lcd.print(picoConsumoCargador); // se añade la lectura del pico de intensidad (picoConsumoCargador)
 	  lcd.print(F(")"));
           break;
         case 6:
@@ -1233,7 +1233,7 @@ void updateScreen(){
           lcd.print(F(" A ("));
           lcd.print(volatileGeneracionFV); // se añade la lectura directa del pin A0
 	  lcd.print(F(" / "));
-	  lcd.print(picoGeneracionFV)") // se añade la lectura del pico de intensidad (picoConsumoCargador)
+	  lcd.print(picoGeneracionFV); // se añade la lectura del pico de intensidad (picoConsumoCargador)
 	  lcd.print(F(")"));
           break;
         case 7:
