@@ -1212,25 +1212,29 @@ void updateScreen(){
           lcd.print(intensidadProgramada);
           lcd.print(F(" A     "));
           break;
-        case 5:
-          lcd.print(F("INTENSID. CARGA:"));
+       case 5:
+          lcd.print(F("VEH. CARGANDO A:"));
           lcd.setCursor(0, 1);
-          lcd.print(F("   "));
+          //lcd.print(F("   "));
           if (consumoCargadorAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoCargadorAmperios);
           lcd.print(F(" A ("));
           lcd.print(volatileConsumoCargador); // se añade la lectura directa del pin A3
-          lcd.print(F(")   "));
+          lcd.print(F(" / "));
+	  lcd.print(picoConsumoCargador)") // se añade la lectura del pico de intensidad (picoConsumoCargador)
+	  lcd.print(F(")"));
           break;
         case 6:
           lcd.print(F("EXCEDENTES FV:  "));
           lcd.setCursor(0, 1);
-          lcd.print(F("   "));
+          //lcd.print(F("   "));
           if (generacionFVAmperios < 10)lcd.print(F(" "));
           lcd.print(generacionFVAmperios);
           lcd.print(F(" A ("));
           lcd.print(volatileGeneracionFV); // se añade la lectura directa del pin A0
-          lcd.print(F(")   "));
+	  lcd.print(F(" / "));
+	  lcd.print(picoGeneracionFV)") // se añade la lectura del pico de intensidad (picoConsumoCargador)
+	  lcd.print(F(")"));
           break;
         case 7:
           lcd.print(F("CONSUMO GENERAL:"));
