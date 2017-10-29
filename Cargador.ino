@@ -38,10 +38,10 @@ const int BOTONPROG = 3;
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
-unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, valorTipoCarga = 0;
-int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
+unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
+int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, numLecturasCarg = 0, numLecturasGeneral = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
-int picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral, lecturaConsumoCargador, lecturaConsumoGeneral, lecturaGeneracionFV;
+int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
 byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0;
@@ -173,7 +173,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.19 ****"));
+  lcd.print(F("**** V 1.24 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -196,49 +196,58 @@ void RetPulsos() {
 void loop() {
   if (actualizarDatos){
     int tension;
-    noInterrupts();                      // Desactivamos las interrupciones
     tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
-    interrupts();                     // Activamos las interrupciones
-    
+        
     acumTensionCargador += tension;
-    
-    lecturaConsumoCargador = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
-    lecturaConsumoGeneral = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-    lecturaGeneracionFV = analogRead(pinGeneracionFV);        // Leemos la generación de la instalación fotovoltaica
-    
-    if (lecturaConsumoCargador > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 1000 lecturas
-      picoConsumoCargador = lecturaConsumoCargador;
-    if (lecturaConsumoGeneral > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 1000 lecturas
-      picoConsumoGeneral = lecturaConsumoGeneral;
-    if (lecturaGeneracionFV > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 1000 lecturas
-      picoGeneracionFV = lecturaGeneracionFV;
-    
+	
+	 
+  if (analogRead(pinConsumoCargador) > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
+			numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
+			acumIntensidadCargador += analogRead(pinConsumoCargador);
+			if (numLecturasCarg > 1000) {
+				mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
+				numLecturasCarg = 0; acumIntensidadCargador = 0;
+			        }
+			}
+	    
+  if (analogRead(pinConsumoGeneral) > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
+			numLecturasGeneral++;
+			acumIntensidadGeneral += analogRead(pinConsumoGeneral);
+			if (numLecturasGeneral > 1000) {
+				mediaIntensidadGeneral = acumIntensidadGeneral / numLecturasGeneral;
+				numLecturasGeneral = 0; acumIntensidadGeneral = 0;
+			        }
+			}
+  
+	
+  acumIntensidadFV += analogRead(pinGeneracionFV); // en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
+                                                   // sinó la añalógica del plc la que le envía el valor
+       
     numCiclos++;
     if (numCiclos > 999){
       
       tensionCargador = acumTensionCargador / numCiclos;
-      numCiclos = 0;
-  
-      consumoCargadorAmperios = ((picoConsumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
-      if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
+	  
+	  mediaIntensidadFV = acumIntensidadFV / numCiclos;
+	       
+      consumoCargadorAmperios = ((mediaIntensidadCargador - 506) * 53) / 240;    // Calcula el consumo del cargador en Amperios
+      if (consumoCargadorAmperios < 0){
         consumoCargadorAmperios = 0;
       }
-      consumoGeneralAmperios = ((picoConsumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
+      consumoGeneralAmperios = ((mediaIntensidadGeneral - 506) * 53) / 240;     // Calcula el consumo general en Amperios
       if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
         consumoGeneralAmperios = 0;
       }
-      generacionFVAmperios = ((picoGeneracionFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
+      generacionFVAmperios = ((mediaIntensidadFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
       if ((generacionFVAmperios < 0) || !conFV){
         generacionFVAmperios = 0;
-      }
-
-      acumTensionCargador = 0;
-      picoConsumoCargador = 0;
-      picoConsumoGeneral = 0;
-      picoGeneracionFV = 0;
+	    }
+      
+      numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0; acumIntensidadGeneral = 0;
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
+	  
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -1210,26 +1219,28 @@ void updateScreen(){
         case 5:
           lcd.print(F("VEH. CARGANDO A:"));
           lcd.setCursor(0, 1);
-          //lcd.print(F("   "));
+          lcd.print(F("   "));
           if (consumoCargadorAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoCargadorAmperios);
-          lcd.print(F(" A ("));
-          lcd.print(lecturaConsumoCargador); // se añade la lectura directa del pin A3
-          lcd.print(F(" / "));
-      	  lcd.print(picoConsumoCargador); // se añade la lectura del pico de intensidad (picoConsumoCargador)
-      	  lcd.print(F(")"));
+          lcd.print(F(" A    ("));
+          lcd.print(mediaIntensidadCargador); // se añade la lectura media del pin A3
+          lcd.print(F(")    "));
           break;
         case 6:
           lcd.print(F("EXCEDENTES FV:  "));
           lcd.setCursor(0, 1);
-          //lcd.print(F("   "));
+          //lcd.print(F(" "));
           if (generacionFVAmperios < 10)lcd.print(F(" "));
           lcd.print(generacionFVAmperios);
-          lcd.print(F(" A ("));
-          lcd.print(lecturaGeneracionFV); // se añade la lectura directa del pin A0
-      	  lcd.print(F(" / "));
-      	  lcd.print(picoGeneracionFV); // se añade la lectura del pico de intensidad (picoConsumoCargador)
-      	  lcd.print(F(")"));
+          lcd.print(F("A ("));
+          lcd.print(mediaIntensidadFV); // se añade la lectura media del pin A0
+          lcd.print(F(") EXC:"));
+
+		  if (HayExcedentesFV) {
+			  lcd.print (F("SI"));
+		  }else{
+			  lcd.print(F("NO"));
+			}
           break;
         case 7:
           lcd.print(F("CONSUMO GENERAL:"));
@@ -1238,7 +1249,7 @@ void updateScreen(){
           if (consumoGeneralAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoGeneralAmperios);
           lcd.print(F(" A ("));
-          lcd.print(lecturaConsumoGeneral); // se añade la lectura directa del pin A1
+          lcd.print(mediaIntensidadGeneral); // se añade la lectura media del pin A1
           lcd.print(F(")   "));
           break;
         case 8:
@@ -1479,10 +1490,10 @@ bool HayExcedentesFV(){
   
   if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo en el que no hay excedentes ....
-    if ((currentMillis - tiempoGeneraSuficiente) >= 300000l) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
+    if ((currentMillis - tiempoGeneraSuficiente) >= 100000l) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
   }else{    // Si NO hay excedentes sufucientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo en el que hay excedentes ....
-    if ((currentMillis - tiempoNoGeneraSuficiente) < 300000l) return true;
+    if ((currentMillis - tiempoNoGeneraSuficiente) < 60000l) return true;
   }
   return false;
 }
@@ -1584,9 +1595,10 @@ long EEPROMReadlong(long address)       //    Función que permite leer un dato 
 }
 
 void MonitorizarDatos(){
-  Serial.print("Tensión Cargador(Media) ---> " + (String)tensionCargador + "\n");
+  Serial.print("Tensión Cargador(Media) ---> " + (String)tensionCargador);
   Serial.print("Consumo General Amperios --> " + (String)consumoGeneralAmperios + "\n");
   Serial.print("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios + "\n");
+  Serial.print(" Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
   Serial.print("Generación FV Amperios ----> " + (String)generacionFVAmperios + "\n");
   Serial.print("Duracion del pulso --------> " + (String)duracionPulso + "\n");
 }
@@ -1594,4 +1606,3 @@ void MonitorizarDatos(){
 bool AnnoBisiesto(unsigned int ano){
   return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
 }
-
