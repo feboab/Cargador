@@ -35,13 +35,13 @@ const int BOTONMENOS = 2;
 const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
-volatile int volatileTension, volatileConsumoCargador, volatileConsumoGeneral, volatileGeneracionFV;
+volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, generacionFVInsuficiente = false, luzLcd = true, horarioVerano = true;
-int consumoCargador = 0, generacionFV = 0, consumoGeneral = 0, picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral;
+bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+int picoConsumoCargador, picoGeneracionFV, picoConsumoGeneral, lecturaConsumoCargador, lecturaConsumoGeneral, lecturaGeneracionFV;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
 byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0;
@@ -202,42 +202,40 @@ void loop() {
     
     acumTensionCargador += tension;
     
-    volatileConsumoCargador = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
-    volatileConsumoGeneral = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
-    volatileGeneracionFV = analogRead(pinGeneracionFV);        // Leemos la generación de la instalación fotovoltaica
+    lecturaConsumoCargador = analogRead(pinConsumoCargador);  // Leemos el consumo del cargador
+    lecturaConsumoGeneral = analogRead(pinConsumoGeneral);    // Leemos el consumo general de la vivienda
+    lecturaGeneracionFV = analogRead(pinGeneracionFV);        // Leemos la generación de la instalación fotovoltaica
     
-    if (volatileConsumoCargador > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 1000 lecturas
-      picoConsumoCargador = volatileConsumoCargador;
-    if (volatileConsumoGeneral > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 1000 lecturas
-      picoConsumoGeneral = volatileConsumoGeneral;
-    if (volatileGeneracionFV > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 1000 lecturas
-      picoGeneracionFV = volatileGeneracionFV;
+    if (lecturaConsumoCargador > picoConsumoCargador)           // toma el valor más alto de consumo del cargador de entre 1000 lecturas
+      picoConsumoCargador = lecturaConsumoCargador;
+    if (lecturaConsumoGeneral > picoConsumoGeneral)       // toma el valor más alto de consumo general de entre 1000 lecturas
+      picoConsumoGeneral = lecturaConsumoGeneral;
+    if (lecturaGeneracionFV > picoGeneracionFV)         // toma el valor más alto de generación fotovoltaica de entre 1000 lecturas
+      picoGeneracionFV = lecturaGeneracionFV;
     
     numCiclos++;
     if (numCiclos > 999){
       
       tensionCargador = acumTensionCargador / numCiclos;
       numCiclos = 0;
-      acumTensionCargador = 0;
-      consumoCargador = picoConsumoCargador;
-      consumoGeneral = picoConsumoGeneral;
-      generacionFV = picoGeneracionFV;
-      picoConsumoCargador = 0;
-      picoConsumoGeneral = 0;
-      picoGeneracionFV = 0;
   
-      consumoCargadorAmperios = ((consumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
+      consumoCargadorAmperios = ((picoConsumoCargador - 520) * 4) / 24;    // Calcula el consumo del cargador en Amperios
       if (consumoCargadorAmperios < 0){                   // Se restan 520 porque la lectura se hace a través de un divisor de tensión
         consumoCargadorAmperios = 0;
       }
-      consumoGeneralAmperios = ((consumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
+      consumoGeneralAmperios = ((picoConsumoGeneral - 520) * 4) / 24;     // Calcula el consumo general en Amperios
       if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
         consumoGeneralAmperios = 0;
       }
-      generacionFVAmperios = ((generacionFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
+      generacionFVAmperios = ((picoGeneracionFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
       if ((generacionFVAmperios < 0) || !conFV){
         generacionFVAmperios = 0;
       }
+
+      acumTensionCargador = 0;
+      picoConsumoCargador = 0;
+      picoConsumoGeneral = 0;
+      picoGeneracionFV = 0;
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
@@ -390,7 +388,7 @@ void loop() {
   
   if (luzLcd){
     if (tiempoUltimaPulsacionBoton > actualMillis) tiempoUltimaPulsacionBoton = actualMillis;
-    if (actualMillis - tiempoUltimaPulsacionBoton >= 600000){
+    if (actualMillis - tiempoUltimaPulsacionBoton >= 600000l){
       luzLcd = false;
       enPantallaNumero = 0;
       lcd.clear();
@@ -408,7 +406,6 @@ void loop() {
 void IniciarCarga(){
   watiosCargados = 0;
   cargaCompleta = false;
-  generacionFVInsuficiente = false;
   inicioCargaActivado = true;
   enPantallaNumero = 0;
   EEPROM.write(11, tipoCarga);
@@ -1070,10 +1067,8 @@ void updateScreen(){
           switch (tipoCarga){
             case EXCEDENTESFV:
             case INTELIGENTE:
-              if (generacionFVInsuficiente){
-                lcd.setCursor(0, 1);
-                lcd.print(F("GEN. FV INSUFIC."));
-              }
+              lcd.setCursor(0, 1);
+              lcd.print(F("GEN. FV INSUFIC."));
               break;
             case FRANJAHORARIA:
               lcd.setCursor(0, 1);
@@ -1212,17 +1207,17 @@ void updateScreen(){
           lcd.print(intensidadProgramada);
           lcd.print(F(" A     "));
           break;
-       case 5:
+        case 5:
           lcd.print(F("VEH. CARGANDO A:"));
           lcd.setCursor(0, 1);
           //lcd.print(F("   "));
           if (consumoCargadorAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoCargadorAmperios);
           lcd.print(F(" A ("));
-          lcd.print(volatileConsumoCargador); // se añade la lectura directa del pin A3
+          lcd.print(lecturaConsumoCargador); // se añade la lectura directa del pin A3
           lcd.print(F(" / "));
-	  lcd.print(picoConsumoCargador); // se añade la lectura del pico de intensidad (picoConsumoCargador)
-	  lcd.print(F(")"));
+      	  lcd.print(picoConsumoCargador); // se añade la lectura del pico de intensidad (picoConsumoCargador)
+      	  lcd.print(F(")"));
           break;
         case 6:
           lcd.print(F("EXCEDENTES FV:  "));
@@ -1231,10 +1226,10 @@ void updateScreen(){
           if (generacionFVAmperios < 10)lcd.print(F(" "));
           lcd.print(generacionFVAmperios);
           lcd.print(F(" A ("));
-          lcd.print(volatileGeneracionFV); // se añade la lectura directa del pin A0
-	  lcd.print(F(" / "));
-	  lcd.print(picoGeneracionFV); // se añade la lectura del pico de intensidad (picoConsumoCargador)
-	  lcd.print(F(")"));
+          lcd.print(lecturaGeneracionFV); // se añade la lectura directa del pin A0
+      	  lcd.print(F(" / "));
+      	  lcd.print(picoGeneracionFV); // se añade la lectura del pico de intensidad (picoConsumoCargador)
+      	  lcd.print(F(")"));
           break;
         case 7:
           lcd.print(F("CONSUMO GENERAL:"));
@@ -1243,7 +1238,7 @@ void updateScreen(){
           if (consumoGeneralAmperios < 10)lcd.print(F(" "));
           lcd.print(consumoGeneralAmperios);
           lcd.print(F(" A ("));
-          lcd.print(volatileConsumoGeneral); // se añade la lectura directa del pin A1
+          lcd.print(lecturaConsumoGeneral); // se añade la lectura directa del pin A1
           lcd.print(F(")   "));
           break;
         case 8:
@@ -1252,11 +1247,11 @@ void updateScreen(){
           lcd.print(F("      "));
           lcd.print(tensionCargador);
           if (tensionCargador <= 500){
-	  lcd.print(F("  ERROR"));
-	  }else{
-          lcd.print(F("       ");
-	  }
-	  break;
+            lcd.print(F("  ERROR"));
+          }else{
+            lcd.print(F("       "));
+          }
+          break;
       }
       break;
     case 11:
@@ -1484,17 +1479,10 @@ bool HayExcedentesFV(){
   
   if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo en el que no hay excedentes ....
-    if ((currentMillis - tiempoGeneraSuficiente) > 300000){   // Si hay excedentes durante más de 5 minutos activamos la carga
-      generacionFVInsuficiente = false;
-      return true;
-    }
+    if ((currentMillis - tiempoGeneraSuficiente) >= 300000l) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
   }else{    // Si NO hay excedentes sufucientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo en el que hay excedentes ....
-    if ((currentMillis - tiempoNoGeneraSuficiente) > 300000){
-      generacionFVInsuficiente = true;
-    }else{
-      return true;
-    }
+    if ((currentMillis - tiempoNoGeneraSuficiente) < 300000l) return true;
   }
   return false;
 }
