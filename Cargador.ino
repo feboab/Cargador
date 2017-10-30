@@ -103,10 +103,6 @@ void setup() {
   if (!rtc.begin()) {
     Serial.println(F("ERROR, SIN CONEX AL RELOJ\n"));
     while (1);
-  }else{
-    timeNow = rtc.now();
-    horarioVerano = EsHorarioVerano(timeNow);
-    EEPROM.write(14, horarioVerano);
   }
   
   if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da valores nó válidos, así que se asignan valores predeterminados
@@ -124,6 +120,10 @@ void setup() {
     EEPROM.write(12, valorTipoCarga);
     inicioCargaActivado = false;
     EEPROM.write(13, inicioCargaActivado);
+    DateTime date = DateTime(F(__DATE__), F(__TIME__));
+    rtc.adjust(date);
+    horarioVerano = EsHorarioVerano(date);
+    EEPROM.write(14, horarioVerano);
   }
   if (generacionMinima > 32) {
     generacionMinima = 4;
