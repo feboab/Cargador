@@ -245,16 +245,16 @@ void loop() {
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
-      //if ((horaNow > lastCheckHour) || (horaNow == 1 && lastCheckHour == 24)){   usar este if si la hora llega a 24
-      if ((horaNow > lastCheckHour) || (horaNow == 0 && lastCheckHour == 23)){
+      //if (horaNow > lastCheckHour || (horaNow == 1 && lastCheckHour == 24)){   usar este if si la hora llega a 24
+      if (horaNow > lastCheckHour || (horaNow == 0 && lastCheckHour == 23)){
         lastCheckHour = horaNow;
         bool tempHorarioVerano = EsHorarioVerano(timeNow);
-        if (horarioVerano && !tempHorarioVerano && horaNow == 3){
+        if (horarioVerano && !tempHorarioVerano && horaNow >= 3){
           horaNow--;
           horarioVerano = false;
           rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
           EEPROM.write(14, horarioVerano);
-        }else if (!horarioVerano && tempHorarioVerano && horaNow == 2){
+        }else if (!horarioVerano && tempHorarioVerano && horaNow >= 2){
           horaNow++;
           horarioVerano = true;
           rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
