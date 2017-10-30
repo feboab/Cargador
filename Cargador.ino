@@ -103,10 +103,10 @@ void setup() {
   if (!rtc.begin()) {
     Serial.println(F("ERROR, SIN CONEX AL RELOJ\n"));
     while (1);
-  }
-	
-  if (rtc.lostPower()) {
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  }else{
+    timeNow = rtc.now();
+    horarioVerano = EsHorarioVerano(timeNow);
+    EEPROM.write(14, horarioVerano);
   }
   
   if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da valores nó válidos, así que se asignan valores predeterminados
@@ -124,8 +124,6 @@ void setup() {
     EEPROM.write(12, valorTipoCarga);
     inicioCargaActivado = false;
     EEPROM.write(13, inicioCargaActivado);
-    horarioVerano = true;
-    EEPROM.write(14, horarioVerano);
   }
   if (generacionMinima > 32) {
     generacionMinima = 4;
@@ -173,7 +171,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.24 ****"));
+  lcd.print(F("**** V 1.25 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -195,40 +193,36 @@ void RetPulsos() {
 
 void loop() {
   if (actualizarDatos){
-    int tension;
-    tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
-        
+    int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
-	
-	 
-  if (analogRead(pinConsumoCargador) > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
-			numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
-			acumIntensidadCargador += analogRead(pinConsumoCargador);
-			if (numLecturasCarg > 1000) {
-				mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
-				numLecturasCarg = 0; acumIntensidadCargador = 0;
-			        }
-			}
-	    
-  if (analogRead(pinConsumoGeneral) > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
-			numLecturasGeneral++;
-			acumIntensidadGeneral += analogRead(pinConsumoGeneral);
-			if (numLecturasGeneral > 1000) {
-				mediaIntensidadGeneral = acumIntensidadGeneral / numLecturasGeneral;
-				numLecturasGeneral = 0; acumIntensidadGeneral = 0;
-			        }
-			}
-  
-	
-  acumIntensidadFV += analogRead(pinGeneracionFV); // en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
-                                                   // sinó la añalógica del plc la que le envía el valor
-       
+
+    int lectura = analogRead(pinConsumoCargador);
+    if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
+    	numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
+    	acumIntensidadCargador += lectura;
+    	if (numLecturasCarg > 1000) {
+    		mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
+    		numLecturasCarg = 0; acumIntensidadCargador = 0;
+      }
+    }
+
+    lectura = analogRead(pinConsumoGeneral);
+    if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
+  		numLecturasGeneral++;
+  		acumIntensidadGeneral += lectura;
+  		if (numLecturasGeneral > 1000) {
+  			mediaIntensidadGeneral = acumIntensidadGeneral / numLecturasGeneral;
+  			numLecturasGeneral = 0; acumIntensidadGeneral = 0;
+      }
+    }
+    
+    acumIntensidadFV += analogRead(pinGeneracionFV); // en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
+                                                     // sinó la añalógica del plc la que le envía el valor
     numCiclos++;
     if (numCiclos > 999){
       
       tensionCargador = acumTensionCargador / numCiclos;
-	  
-	  mediaIntensidadFV = acumIntensidadFV / numCiclos;
+      mediaIntensidadFV = acumIntensidadFV / numCiclos;
 	       
       consumoCargadorAmperios = ((mediaIntensidadCargador - 506) * 53) / 240;    // Calcula el consumo del cargador en Amperios
       if (consumoCargadorAmperios < 0){
@@ -243,7 +237,7 @@ void loop() {
         generacionFVAmperios = 0;
 	    }
       
-      numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0; acumIntensidadGeneral = 0;
+      numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0;
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
@@ -251,15 +245,16 @@ void loop() {
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
-      if (horaNow >= 3 && horaNow > lastCheckHour){
+      //if ((horaNow > lastCheckHour) || (horaNow == 1 && lastCheckHour == 24)){   usar este if si la hora llega a 24
+      if ((horaNow > lastCheckHour) || (horaNow == 0 && lastCheckHour == 23)){
         lastCheckHour = horaNow;
         bool tempHorarioVerano = EsHorarioVerano(timeNow);
-        if (horarioVerano && !tempHorarioVerano){
+        if (horarioVerano && !tempHorarioVerano && horaNow == 3){
           horaNow--;
           horarioVerano = false;
           rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
           EEPROM.write(14, horarioVerano);
-        }else if (!horarioVerano && tempHorarioVerano){
+        }else if (!horarioVerano && tempHorarioVerano && horaNow == 2){
           horaNow++;
           horarioVerano = true;
           rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
@@ -1007,6 +1002,8 @@ void ProcesarBoton(int button){
         switch (button){
           case BOTONINICIO:
             rtc.adjust(DateTime(nuevoAnno, nuevoMes, nuevoDia, nuevaHora, nuevoMinuto, 0));
+            horarioVerano = EsHorarioVerano(DateTime(nuevoAnno, nuevoMes, nuevoDia, nuevaHora, nuevoMinuto, 0));
+            EEPROM.write(14, horarioVerano);
             enPantallaNumero = 135;
             break;
           case BOTONMAS:
@@ -1235,12 +1232,11 @@ void updateScreen(){
           lcd.print(F("A ("));
           lcd.print(mediaIntensidadFV); // se añade la lectura media del pin A0
           lcd.print(F(") EXC:"));
-
-		  if (HayExcedentesFV) {
-			  lcd.print (F("SI"));
-		  }else{
-			  lcd.print(F("NO"));
-			}
+          if (HayExcedentesFV) {
+            lcd.print(F("SI"));
+          }else{
+            lcd.print(F("NO"));
+          }
           break;
         case 7:
           lcd.print(F("CONSUMO GENERAL:"));
@@ -1595,12 +1591,12 @@ long EEPROMReadlong(long address)       //    Función que permite leer un dato 
 }
 
 void MonitorizarDatos(){
-  Serial.print("Tensión Cargador(Media) ---> " + (String)tensionCargador);
-  Serial.print("Consumo General Amperios --> " + (String)consumoGeneralAmperios + "\n");
-  Serial.print("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios + "\n");
-  Serial.print(" Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
-  Serial.print("Generación FV Amperios ----> " + (String)generacionFVAmperios + "\n");
-  Serial.print("Duracion del pulso --------> " + (String)duracionPulso + "\n");
+  Serial.println("Tensión Cargador(Media) ---> " + (String)tensionCargador);
+  Serial.println("Consumo General Amperios --> " + (String)consumoGeneralAmperios);
+  Serial.println("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios);
+  Serial.println("Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
+  Serial.println("Generación FV Amperios ----> " + (String)generacionFVAmperios);
+  Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
 }
 
 bool AnnoBisiesto(unsigned int ano){
