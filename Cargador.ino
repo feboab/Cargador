@@ -109,7 +109,7 @@ void setup() {
     horaInicioCarga = 0;
     EEPROM.write(0, horaInicioCarga);
     cargadorEnConsumoGeneral = true;
-    EEPROM.write(6, cargadorEnConsumoGeneral); 
+    EEPROM.write(6, cargadorEnConsumoGeneral);
     conSensorGeneral = true;
     EEPROM.write(7, conSensorGeneral);
     conFV = true;
@@ -1470,7 +1470,7 @@ bool EsHorarioVerano(DateTime fecha){
     int dhv = daysInMonth[2] - DateTime(fecha.year(), 3, daysInMonth[2]).dayOfTheWeek();
     //el último domingo de Octubre
     int dhi = daysInMonth[9] - DateTime(fecha.year(), 10, daysInMonth[9]).dayOfTheWeek();
-    if ((fecha.month() == 3  && fecha.day() >= dhv) || (fecha.month() == 10 && fecha.day() < dhi)){
+    if ((fecha.month() == 3 && (fecha.day() > dhv || (fecha.day() == dhv && fecha.hour() >= 2))) || (fecha.month() == 10 && (fecha.day() < dhi || (fecha.day() == dhi && fecha.hour() < 3)))){
       return true;
     }
   }
