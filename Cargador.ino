@@ -95,12 +95,12 @@ void setup() {
 	
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
   lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
-  lcd.setBacklight(HIGH);
+  lcd.setBacklight(HIGH); //Encendemos la retoiluminación del display LCD
   luzLcd = true;
   
-  Serial.begin(9600);
+  Serial.begin(9600); // Iniciamos el puerto serie
 
-  if (!rtc.begin()) {
+  if (!rtc.begin()) { // Comprobamos la comunicación con el reloj RTC
     Serial.println(F("ERROR, SIN CONEX AL RELOJ\n"));
     while (1);
   }
@@ -126,7 +126,7 @@ void setup() {
     EEPROM.write(14, horarioVerano);
   }
   if (generacionMinima > 32) {
-    generacionMinima = 4;
+    generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
   }
   if (minutoInicioCarga > 59) {
@@ -135,12 +135,12 @@ void setup() {
   }
   if (intensidadProgramada < 6 ){ // Corregimos el valor de la Intensidad Programada si fuese necesario .... 
     intensidadProgramada = 6;    // no puede ser menor de 6A
-    EEPROM.write(2, intensidadProgramada);
-  }else if (intensidadProgramada > 32 ){
+    }else if (intensidadProgramada > 32 ){
     intensidadProgramada = 32;   // tampoco puede ser mayor de 32A, ya que es la intensidad máxima que soporta el cargador.
+    }
     EEPROM.write(2, intensidadProgramada);
-  }
-  if (consumoTotalMax > 63) {
+  
+    if (consumoTotalMax > 63) {
     consumoTotalMax = 32;
     EEPROM.write(3, consumoTotalMax); //Si el valor es erroneo lo ponemos a 32
   }
@@ -165,13 +165,13 @@ void setup() {
     EEPROM.write(18, 0);
   }
   
-  Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda
-  Timer1.attachInterrupt(RetPulsos); // Activa la interrupcion y la asocia a RetPulsos
+  Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda (1000 hz)
+  Timer1.attachInterrupt(RetPulsos); // Activa la interrupcion y la asocia a la rutina RetPulsos
   
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.25 ****"));
+  lcd.print(F("**** V 1.27 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -200,7 +200,7 @@ void loop() {
     if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
     	numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
     	acumIntensidadCargador += lectura;
-    	if (numLecturasCarg > 1000) {
+    	if (numLecturasCarg > 999) {
     		mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
     		numLecturasCarg = 0; acumIntensidadCargador = 0;
       }
@@ -210,7 +210,7 @@ void loop() {
     if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
   		numLecturasGeneral++;
   		acumIntensidadGeneral += lectura;
-  		if (numLecturasGeneral > 1000) {
+  		if (numLecturasGeneral > 999) {
   			mediaIntensidadGeneral = acumIntensidadGeneral / numLecturasGeneral;
   			numLecturasGeneral = 0; acumIntensidadGeneral = 0;
       }
@@ -224,11 +224,11 @@ void loop() {
       tensionCargador = acumTensionCargador / numCiclos;
       mediaIntensidadFV = acumIntensidadFV / numCiclos;
 	       
-      consumoCargadorAmperios = ((mediaIntensidadCargador - 506) * 53) / 240;    // Calcula el consumo del cargador en Amperios
+      consumoCargadorAmperios = ((mediaIntensidadCargador - 510) * 0.244);    // Calcula el consumo del cargador en Amperios
       if (consumoCargadorAmperios < 0){
         consumoCargadorAmperios = 0;
       }
-      consumoGeneralAmperios = ((mediaIntensidadGeneral - 506) * 53) / 240;     // Calcula el consumo general en Amperios
+      consumoGeneralAmperios = ((mediaIntensidadGeneral - 510) * 0.244);     // Calcula el consumo general en Amperios
       if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
         consumoGeneralAmperios = 0;
       }
@@ -245,7 +245,6 @@ void loop() {
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
-      //if (horaNow > lastCheckHour || (horaNow == 1 && lastCheckHour == 24)){   usar este if si la hora llega a 24
       if (horaNow > lastCheckHour || (horaNow == 0 && lastCheckHour == 23)){
         lastCheckHour = horaNow;
         bool tempHorarioVerano = EsHorarioVerano(timeNow);
@@ -873,10 +872,10 @@ void ProcesarBoton(int button){
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
-            (tempValorInt >= 25) ? tempValorInt = 2 : tempValorInt++;
+            (tempValorInt >= 32) ? tempValorInt = 2 : tempValorInt++;
             break;
           case BOTONMENOS:
-            (tempValorInt <= 2) ? tempValorInt = 25 : tempValorInt--;
+            (tempValorInt <= 2) ? tempValorInt = 32 : tempValorInt--;
             break;
           case BOTONPROG:
             enPantallaNumero = 11;
@@ -929,7 +928,7 @@ void ProcesarBoton(int button){
             if (nuevoAnno < 2050) nuevoAnno++;
             break;
           case BOTONMENOS:
-            if (nuevoAnno > 2015) nuevoAnno--;
+            if (nuevoAnno > 2017) nuevoAnno--;
             break;
           case BOTONPROG:
             opcionNumero = 2;
@@ -1445,7 +1444,7 @@ void MostrarPantallaCarga(){
   lcd.print(consumoCargadorAmperios);
   lcd.print(F("A "));
   lcd.print(watiosCargados / 100);
-  lcd.print(F("Wh"));
+  lcd.print(F("Wh")); // Al pasar de 10KWh cargados no se mostrará la "h", me parece un mal menor .......
 }
 
 void MostrarTiempoRestante(int minutosRestantes){
@@ -1486,7 +1485,7 @@ bool HayExcedentesFV(){
   
   if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo en el que no hay excedentes ....
-    if ((currentMillis - tiempoGeneraSuficiente) >= 100000l) return true;   // Si hay excedentes durante más de 5 minutos activamos la carga
+    if ((currentMillis - tiempoGeneraSuficiente) >= 60000l) return true;   // Si hay excedentes durante más de x minutos activamos la carga
   }else{    // Si NO hay excedentes sufucientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo en el que hay excedentes ....
     if ((currentMillis - tiempoNoGeneraSuficiente) < 60000l) return true;
