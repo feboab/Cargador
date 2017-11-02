@@ -47,6 +47,7 @@ unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGen
 byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
+const float factor = 0.244;
 
 byte enheM[8] = { B01110, B00000, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
 
@@ -171,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.27 ****"));
+  lcd.print(F("**** V 1.28 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -196,7 +197,7 @@ void loop() {
     int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
 
-    int lectura = analogRead(pinConsumoCargador);
+  	int lectura = analogRead(pinConsumoCargador);
     if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
     	numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
     	acumIntensidadCargador += lectura;
@@ -204,8 +205,10 @@ void loop() {
     		mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
     		numLecturasCarg = 0; acumIntensidadCargador = 0;
       }
-    }
-
+	}
+  
+  
+  
     lectura = analogRead(pinConsumoGeneral);
     if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
   		numLecturasGeneral++;
@@ -224,11 +227,11 @@ void loop() {
       tensionCargador = acumTensionCargador / numCiclos;
       mediaIntensidadFV = acumIntensidadFV / numCiclos;
 	       
-      consumoCargadorAmperios = ((mediaIntensidadCargador - 510) * 0.244);    // Calcula el consumo del cargador en Amperios
-      if (consumoCargadorAmperios < 0){
+      consumoCargadorAmperios = ((mediaIntensidadCargador - 510) * factor);    // Calcula el consumo del cargador en Amperios
+      if (consumoCargadorAmperios < 0 || !pinAlimentacionCargador){
         consumoCargadorAmperios = 0;
       }
-      consumoGeneralAmperios = ((mediaIntensidadGeneral - 510) * 0.244);     // Calcula el consumo general en Amperios
+      consumoGeneralAmperios = ((mediaIntensidadGeneral - 510) * factor);     // Calcula el consumo general en Amperios
       if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
         consumoGeneralAmperios = 0;
       }
@@ -1231,7 +1234,7 @@ void updateScreen(){
           lcd.print(F("A ("));
           lcd.print(mediaIntensidadFV); // se añade la lectura media del pin A0
           lcd.print(F(") EXC:"));
-          if (HayExcedentesFV) {
+          if (HayExcedentesFV()) {
             lcd.print(F("SI"));
           }else{
             lcd.print(F("NO"));
@@ -1483,11 +1486,11 @@ bool HayExcedentesFV(){
   
   bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
   
-  if (generacionSuficiente){                  // Si hay excedentes sufucientes ....
-    tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo en el que no hay excedentes ....
+  if (generacionSuficiente){                  // Si hay excedentes suficientes ....
+    tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
     if ((currentMillis - tiempoGeneraSuficiente) >= 60000l) return true;   // Si hay excedentes durante más de x minutos activamos la carga
-  }else{    // Si NO hay excedentes sufucientes ....
-    tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo en el que hay excedentes ....
+  }else{    // Si NO hay excedentes suficientes ....
+    tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
     if ((currentMillis - tiempoNoGeneraSuficiente) < 60000l) return true;
   }
   return false;
