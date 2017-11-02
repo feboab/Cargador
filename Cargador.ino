@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.28 ****"));
+  lcd.print(F("**** V 1.29 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -205,10 +205,8 @@ void loop() {
     		mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
     		numLecturasCarg = 0; acumIntensidadCargador = 0;
       }
-	}
-  
-  
-  
+    }
+
     lectura = analogRead(pinConsumoGeneral);
     if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
   		numLecturasGeneral++;
@@ -226,25 +224,21 @@ void loop() {
       
       tensionCargador = acumTensionCargador / numCiclos;
       mediaIntensidadFV = acumIntensidadFV / numCiclos;
-	       
-      consumoCargadorAmperios = ((mediaIntensidadCargador - 510) * factor);    // Calcula el consumo del cargador en Amperios
-      if (consumoCargadorAmperios < 0 || !pinAlimentacionCargador){
-        consumoCargadorAmperios = 0;
-      }
-      consumoGeneralAmperios = ((mediaIntensidadGeneral - 510) * factor);     // Calcula el consumo general en Amperios
-      if ((consumoGeneralAmperios < 0) || !conSensorGeneral){
-        consumoGeneralAmperios = 0;
-      }
-      generacionFVAmperios = ((mediaIntensidadFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
-      if ((generacionFVAmperios < 0) || !conFV){
-        generacionFVAmperios = 0;
-	    }
+      
+      consumoCargadorAmperios = 0;
+      if (cargando) consumoCargadorAmperios = (mediaIntensidadCargador - 510) * factor;    // Calcula el consumo del cargador en Amperios
+      
+      consumoGeneralAmperios = 0;
+      if (conSensorGeneral) consumoGeneralAmperios = (mediaIntensidadGeneral - 510) * factor;     // Calcula el consumo general en Amperios
+      
+      generacionFVAmperios = 0;
+      if (conFV) generacionFVAmperios = ((mediaIntensidadFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
       
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0;
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
-	  
+      
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -1234,11 +1228,7 @@ void updateScreen(){
           lcd.print(F("A ("));
           lcd.print(mediaIntensidadFV); // se añade la lectura media del pin A0
           lcd.print(F(") EXC:"));
-          if (HayExcedentesFV()) {
-            lcd.print(F("SI"));
-          }else{
-            lcd.print(F("NO"));
-          }
+          (HayExcedentesFV()) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
         case 7:
           lcd.print(F("CONSUMO GENERAL:"));
@@ -1255,11 +1245,7 @@ void updateScreen(){
           lcd.setCursor(0, 1);
           lcd.print(F("      "));
           lcd.print(tensionCargador);
-          if (tensionCargador <= 500){
-            lcd.print(F("  ERROR"));
-          }else{
-            lcd.print(F("       "));
-          }
+          (tensionCargador <= 500) ? lcd.print(F("  ERROR")) : lcd.print(F("       "));
           break;
       }
       break;
