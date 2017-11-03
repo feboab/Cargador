@@ -40,7 +40,7 @@ byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consu
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, numLecturasCarg = 0, numLecturasGeneral = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool permisoCarga = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+bool permisoCarga = false, antesConectado = false, desconectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.29 ****"));
+  lcd.print(F("**** V 1.30 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -193,6 +193,13 @@ void RetPulsos() {
 }
 
 void loop() {
+	
+	if (desconectado) antesConectado = true;
+    
+	if ((tipoCarga = (FRANJAHORARIA || TARIFAVALLE )) & antesConectado & conectado) {
+		IniciarCarga(); antesConectado = false;
+	}
+		
   if (actualizarDatos){
     int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
@@ -236,7 +243,8 @@ void loop() {
       
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0;
       
-      conectado = (tensionCargador < 660 && tensionCargador > 500);
+      desconectado = (tensionCargador > 660);
+	  conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
       
       timeNow = rtc.now();
@@ -418,6 +426,8 @@ void FinalizarCarga(){
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
+  if (conTarifaValle) tipoCarga = TARIFAVALLE;
+  else if ((horaInicioCarga > 0) & (horaFinCarga > 0)) tipoCarga = FRANJAHORARIA;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -1433,7 +1443,7 @@ void MostrarPantallaCarga(){
   lcd.print(consumoCargadorAmperios);
   lcd.print(F("A "));
   lcd.print(watiosCargados / 100);
-  lcd.print(F("Wh")); // Al pasar de 10KWh cargados no se mostrará la "h", me parece un mal menor .......
+  lcd.print(F("Wh   ")); // Al pasar de 10KWh cargados no se mostrará la "h", me parece un mal menor .......
 }
 
 void MostrarTiempoRestante(int minutosRestantes){
