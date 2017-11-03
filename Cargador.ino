@@ -196,23 +196,27 @@ void loop() {
 	
 	if (desconectado) antesConectado = true;
     
-	if ((tipoCarga = (FRANJAHORARIA || TARIFAVALLE )) && antesConectado && conectado) {
-		IniciarCarga(); antesConectado = false;
+	if ((tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE) && antesConectado && conectado) {
+		IniciarCarga();
+		antesConectado = false;
 	}
 		
   if (actualizarDatos){
+    
     int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
 
   	int lectura = analogRead(pinConsumoCargador);
-    if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
+    if (lectura < 510) lectura = 1023 - lectura;  //prueba pasando el semiciclo negativo a positivo
+    acumIntensidadCargador += lectura;
+    /*if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
     	numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
     	acumIntensidadCargador += lectura;
     	if (numLecturasCarg > 999) {
     		mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
     		numLecturasCarg = 0; acumIntensidadCargador = 0;
       }
-    }
+    }*/
 
     lectura = analogRead(pinConsumoGeneral);
     if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
@@ -231,6 +235,7 @@ void loop() {
       
       tensionCargador = acumTensionCargador / numCiclos;
       mediaIntensidadFV = acumIntensidadFV / numCiclos;
+      mediaIntensidadCargador = acumIntensidadCargador / numCiclos;
       
       consumoCargadorAmperios = 0;
       if (cargando) consumoCargadorAmperios = (mediaIntensidadCargador - 510) * factor;    // Calcula el consumo del cargador en Amperios
@@ -238,13 +243,15 @@ void loop() {
       consumoGeneralAmperios = 0;
       if (conSensorGeneral) consumoGeneralAmperios = (mediaIntensidadGeneral - 510) * factor;     // Calcula el consumo general en Amperios
       
-      generacionFVAmperios = 0;
-      if (conFV) generacionFVAmperios = ((mediaIntensidadFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
+      generacionFVAmperios = ((mediaIntensidadFV - 264) * 5) / 142;       // Calcula la generación fotovoltaica en Amperios (fórmula adaptada a RSM)
+      if ((generacionFVAmperios < 0) || !conFV){
+        generacionFVAmperios = 0;
+      }
       
-      numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0;
+      numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0, acumIntensidadCargador = 0;
       
       desconectado = (tensionCargador > 660);
-	  conectado = (tensionCargador < 660 && tensionCargador > 500);
+      conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
       
       timeNow = rtc.now();
