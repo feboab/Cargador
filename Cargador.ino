@@ -196,7 +196,7 @@ void loop() {
 	
 	if (desconectado) antesConectado = true;
     
-	if ((tipoCarga = (FRANJAHORARIA || TARIFAVALLE )) & antesConectado & conectado) {
+	if ((tipoCarga = (FRANJAHORARIA || TARIFAVALLE )) && antesConectado && conectado) {
 		IniciarCarga(); antesConectado = false;
 	}
 		
@@ -427,7 +427,7 @@ void FinalizarCarga(){
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
   if (conTarifaValle) tipoCarga = TARIFAVALLE;
-  else if ((horaInicioCarga > 0) & (horaFinCarga > 0)) tipoCarga = FRANJAHORARIA;
+  else if ((horaInicioCarga > 0) && (horaFinCarga > 0)) tipoCarga = FRANJAHORARIA;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
