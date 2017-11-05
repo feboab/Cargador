@@ -36,10 +36,10 @@ const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
-byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 6, tipoCarga = 0, tipoCargaInteligente = 0;
+byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
-int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, numLecturasCarg = 0, numLecturasGeneral = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
+int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 bool permisoCarga = false, antesConectado = false, desconectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.30 ****"));
+  lcd.print(F("**** V 1.31 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -197,8 +197,7 @@ void loop() {
 	if (desconectado) antesConectado = true;
     
 	if ((tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE) && antesConectado && conectado) {
-		IniciarCarga();
-		antesConectado = false;
+		IniciarCarga();	antesConectado = false;
 	}
 		
   if (actualizarDatos){
@@ -206,28 +205,14 @@ void loop() {
     int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
 
-  	int lectura = analogRead(pinConsumoCargador);
-    if (lectura < 510) lectura = 1023 - lectura;  //prueba pasando el semiciclo negativo a positivo
+    int lectura = analogRead(pinConsumoCargador);
+    if (lectura < 510) lectura = 510 + (510 - lectura);  //prueba pasando el semiciclo negativo a positivo
     acumIntensidadCargador += lectura;
-    /*if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad del cargador
-    	numLecturasCarg++;					// sólo del semiciclo positivo.....(tiene la ventaja de que se minimizan los picos de lectura)	
-    	acumIntensidadCargador += lectura;
-    	if (numLecturasCarg > 999) {
-    		mediaIntensidadCargador = acumIntensidadCargador / numLecturasCarg;
-    		numLecturasCarg = 0; acumIntensidadCargador = 0;
-      }
-    }*/
-
-    lectura = analogRead(pinConsumoGeneral);
-    if (lectura > 510 ) { // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
-  		numLecturasGeneral++;
-  		acumIntensidadGeneral += lectura;
-  		if (numLecturasGeneral > 999) {
-  			mediaIntensidadGeneral = acumIntensidadGeneral / numLecturasGeneral;
-  			numLecturasGeneral = 0; acumIntensidadGeneral = 0;
-      }
-    }
     
+    lectura = analogRead(pinConsumoGeneral);
+    if (lectura > 510 ) lectura = 510 + (510 - lectura); // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
+  	acumIntensidadGeneral += lectura;
+      
     acumIntensidadFV += analogRead(pinGeneracionFV); // en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
                                                      // sinó la añalógica del plc la que le envía el valor
     numCiclos++;
@@ -305,7 +290,7 @@ void loop() {
                 }
               break;
           }
-          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){
+          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // ver que es esto
             FinalizarCarga();
             puedeCargar = false;
           }
@@ -434,7 +419,7 @@ void FinalizarCarga(){
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
   if (conTarifaValle) tipoCarga = TARIFAVALLE;
-  else if ((horaInicioCarga > 0) && (horaFinCarga > 0)) tipoCarga = FRANJAHORARIA;
+  else if ((horaInicioCarga > 0) || (horaFinCarga > 0)) tipoCarga = FRANJAHORARIA;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -1112,10 +1097,10 @@ void updateScreen(){
           lcd.print(F("COCHE NO CONECT."));
         }
       }else if (cargaCompleta){
-        lcd.print(F("CARGA COMPLETA  "));
         lcd.setCursor(0, 1);
+        lcd.print(F("CARGADO "));
         lcd.print(watiosCargados / 100);
-        lcd.print(F(" Wh            "));
+        lcd.print(F(" Wh"));
       }else if (conectado){
         lcd.print(F("COCHE CONECTADO "));
         lcd.setCursor(0, 1);
@@ -1239,12 +1224,12 @@ void updateScreen(){
         case 6:
           lcd.print(F("EXCEDENTES FV:  "));
           lcd.setCursor(0, 1);
-          //lcd.print(F(" "));
+          lcd.print(F("    "));
           if (generacionFVAmperios < 10)lcd.print(F(" "));
           lcd.print(generacionFVAmperios);
           lcd.print(F("A ("));
           lcd.print(mediaIntensidadFV); // se añade la lectura media del pin A0
-          lcd.print(F(") EXC:"));
+          lcd.print(F(")     "));
           (HayExcedentesFV()) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
         case 7:
