@@ -169,7 +169,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.32 ****"));
+  lcd.print(F("**** V 1.33 ****"));
   delay(1500);
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -191,7 +191,10 @@ void RetPulsos() {
 
 void loop() {
   
+  unsigned long actualMillis = millis();
+  
   if (actualizarDatos){
+    
     int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
     
@@ -227,23 +230,18 @@ void loop() {
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0;
 
       if (conectado && !antesConectado){
-        if (!inicioCargaActivado){
-          if (conFV){
-            if (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga)){
-              tipoCarga = INTELIGENTE;
-              IniciarCarga();
-            }
-          }else if (conTarifaValle){
-            tipoCarga = TARIFAVALLE;
-            IniciarCarga();
-          }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
-            tipoCarga = FRANJAHORARIA;
-            IniciarCarga();
-          }
-        }
+        if (!inicioCargaActivado && (tipoCarga == INTELIGENTE || tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE)) IniciarCarga();
         antesConectado = true;
+        if (!luzLcd){
+          lcd.setBacklight(HIGH);
+          luzLcd = true;
+        }
       }else if (!conectado && antesConectado){
         antesConectado = false;
+        if (!luzLcd){
+          lcd.setBacklight(HIGH);
+          luzLcd = true;
+        }
       }
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
@@ -326,7 +324,7 @@ void loop() {
               if (watiosCargados >= (valorTipoCarga * 100l)) FinalizarCarga();
               break;
             case TIEMPO:
-              if ((millis() - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
+              if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
               if (!HayExcedentesFV()){
@@ -358,8 +356,6 @@ void loop() {
     }
     actualizarDatos = false;
   }
-
-  unsigned long actualMillis = millis();
   
   if (digitalRead(pinPulsadorInicio) == HIGH) {
     if (!flancoBotonInicio && (actualMillis - tiempoOffBoton > 100)){
@@ -419,17 +415,20 @@ void IniciarCarga(){
   watiosCargados = 0;
   cargaCompleta = false;
   inicioCargaActivado = true;
-  enPantallaNumero = 0;
   EEPROM.write(11, tipoCarga);
   EEPROM.write(13, inicioCargaActivado);
 }
 
 void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
-  cargaCompleta = true;
+  cargaCompleta = false;
+  if (watiosCargados > 0) cargaCompleta = true;
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
+  if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+  else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+  else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -499,10 +498,12 @@ void ProcesarBoton(int button){
               case TARIFAVALLE:
                 tipoCarga = TARIFAVALLE;
                 IniciarCarga();
+                enPantallaNumero = 0;
                 break;
               case FRANJAHORARIA:
                 tipoCarga = FRANJAHORARIA;
                 IniciarCarga();
+                enPantallaNumero = 0;
                 break;
               case ENERGIA:
                 enPantallaNumero = 20;
@@ -517,14 +518,17 @@ void ProcesarBoton(int button){
               case INMEDIATA:
                 tipoCarga = INMEDIATA;
                 IniciarCarga();
+                enPantallaNumero = 0;
                 break;
               case EXCEDENTESFV:
                 tipoCarga = EXCEDENTESFV;
                 IniciarCarga();
+                enPantallaNumero = 0;
                 break;
               case INTELIGENTE:
                 tipoCarga = INTELIGENTE;
                 IniciarCarga();
+                enPantallaNumero = 0;
                 break;
             }
             break;
@@ -562,12 +566,7 @@ void ProcesarBoton(int button){
       case 4:   //Pantalla finalizacion carga
         switch (button){
           case BOTONINICIO:
-            if (tempValorBool){
-              FinalizarCarga();
-              if (watiosCargados == 0){
-                cargaCompleta = false;
-              }
-            }
+            if (tempValorBool) FinalizarCarga();
             enPantallaNumero = 0;
             break;
           case BOTONMAS:
@@ -672,6 +671,7 @@ void ProcesarBoton(int button){
             valorTipoCarga = tempValorInt;
             IniciarCarga();
             EEPROM.write(12, valorTipoCarga);
+            enPantallaNumero = 0;
             break;
           case BOTONMAS:
             if (tempValorInt < 20000) tempValorInt += 500;
@@ -692,6 +692,7 @@ void ProcesarBoton(int button){
             valorTipoCarga = tempValorInt;
             IniciarCarga();
             EEPROM.write(12, valorTipoCarga);
+            enPantallaNumero = 0;
             break;
           case BOTONMAS:
             if (tempValorInt < 600) tempValorInt += 30;
@@ -1052,29 +1053,7 @@ void updateScreen(){
     case 0:   //Pantalla principal
       lcd.setCursor(0, 0);
       if (inicioCargaActivado){
-        switch (tipoCarga){
-          case TARIFAVALLE:
-            lcd.print(F("TC:  TARIFA D.H."));
-            break;
-          case FRANJAHORARIA:
-            lcd.print(F("TC:   F. HORARIA"));
-            break;
-          case INMEDIATA:
-            lcd.print(F("TC:    INMEDIATA"));
-            break;
-          case ENERGIA:
-            lcd.print(F("TC:      ENERGIA"));
-            break;
-          case TIEMPO:
-            lcd.print(F("TC:       TIEMPO"));
-            break;
-          case EXCEDENTESFV:
-            lcd.print(F("TC: EXCEDENT. FV"));
-            break;
-          case INTELIGENTE:
-            lcd.print(F("TC:  INTELIGENTE"));
-            break;
-        }
+        MostrarTipoCarga();
         if (cargando){
           MostrarPantallaCarga();
         }else if (conectado){
@@ -1107,39 +1086,17 @@ void updateScreen(){
           lcd.print(F("COCHE NO CONECT."));
         }
       }else if (cargaCompleta){
-        switch (tipoCarga){
-          case TARIFAVALLE:
-            lcd.print(F("TC:  TARIFA D.H."));
-            break;
-          case FRANJAHORARIA:
-            lcd.print(F("TC:   F. HORARIA"));
-            break;
-          case INMEDIATA:
-            lcd.print(F("TC:    INMEDIATA"));
-            break;
-          case ENERGIA:
-            lcd.print(F("TC:      ENERGIA"));
-            break;
-          case TIEMPO:
-            lcd.print(F("TC:       TIEMPO"));
-            break;
-          case EXCEDENTESFV:
-            lcd.print(F("TC: EXCEDENT. FV"));
-            break;
-          case INTELIGENTE:
-            lcd.print(F("TC:  INTELIGENTE"));
-            break;
-        }
+        MostrarTipoCarga();
         lcd.setCursor(0, 1);
         lcd.print(F("CARGADO "));
         lcd.print(watiosCargados / 100);
         lcd.print(F(" Wh"));
-      }else if (conectado){ // esto ya no se va a cumplir nunca (creo)
+      }else if (conectado){
         lcd.print(F("COCHE CONECTADO "));
         lcd.setCursor(0, 1);
         lcd.print(F("A LA ESPERA....."));
       }else{
-        // lcd.print(F(" WALLBOX FEBOAB ")); (lo elimino para que muestre el TC arriba y la hora abajo)
+        MostrarTipoCarga();
         String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
         hora += ":";
         hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
@@ -1485,6 +1442,32 @@ void MostrarTiempoRestante(int minutosRestantes){
   lcd.print(F("m"));
 }
 
+void MostrarTipoCarga(){
+  switch (tipoCarga){
+    case TARIFAVALLE:
+      lcd.print(F("TC:  TARIFA D.H."));
+      break;
+    case FRANJAHORARIA:
+      lcd.print(F("TC:   F. HORARIA"));
+      break;
+    case INMEDIATA:
+      lcd.print(F("TC:    INMEDIATA"));
+      break;
+    case ENERGIA:
+      lcd.print(F("TC:      ENERGIA"));
+      break;
+    case TIEMPO:
+      lcd.print(F("TC:       TIEMPO"));
+      break;
+    case EXCEDENTESFV:
+      lcd.print(F("TC: EXCEDENT. FV"));
+      break;
+    case INTELIGENTE:
+      lcd.print(F("TC:  INTELIGENTE"));
+      break;
+  }
+}
+
 bool EsHorarioVerano(DateTime fecha){
   if (fecha.month() > 3 && fecha.month() < 10){
     return true;
@@ -1582,8 +1565,7 @@ int ObtenerConsumoRestante(){
   }
 }
 
-void EEPROMWritelong(int address, long value)   //    Función que permite escribir un dato de tipo Long en la eeprom partiendolo en 4 Bytes
-{
+void EEPROMWritelong(int address, long value){   //    Función que permite escribir un dato de tipo Long en la eeprom partiendolo en 4 Bytes
   //Decomposition from a long to 4 bytes by using bitshift.
   //One = Most significant -> Four = Least significant byte
   byte four = (value & 0xFF);
@@ -1598,8 +1580,7 @@ void EEPROMWritelong(int address, long value)   //    Función que permite escri
   EEPROM.write(address + 3, one);
 }
 
-long EEPROMReadlong(long address)       //    Función que permite leer un dato de tipo Long de la eeprom partiendo de 4 Bytes
-{
+long EEPROMReadlong(long address){       //    Función que permite leer un dato de tipo Long de la eeprom partiendo de 4 Bytes
   //Read the 4 bytes from the eeprom memory.
   long four = EEPROM.read(address);
   long three = EEPROM.read(address + 1);
