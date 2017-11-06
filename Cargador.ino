@@ -235,12 +235,14 @@ void loop() {
         if (!luzLcd){
           lcd.setBacklight(HIGH);
           luzLcd = true;
+          tiempoUltimaPulsacionBoton = actualMillis;
         }
       }else if (!conectado && antesConectado){
         antesConectado = false;
         if (!luzLcd){
           lcd.setBacklight(HIGH);
           luzLcd = true;
+          tiempoUltimaPulsacionBoton = actualMillis;
         }
       }
       
