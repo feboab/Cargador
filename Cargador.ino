@@ -195,18 +195,18 @@ void loop() {
     int tension = volatileTension;                // Copiamos la tensión en CP a un auxiliar
     acumTensionCargador += tension;
     
-    int lectura = analogRead(pinConsumoCargador);
-    if (lectura < 510) lectura = 510 + (510 - lectura);  //prueba pasando el semiciclo negativo a positivo
-    acumIntensidadCargador += lectura;
+    int lectura = analogRead(pinConsumoCargador); // leemos el valor de la analógica del trafo del cargador
+    if (lectura < 510) lectura = (1020 - lectura);  // convertimos el semiciclo negativo a positivo
+    acumIntensidadCargador += lectura; // sumamos el valor en el acumulador
     
     lectura = analogRead(pinConsumoGeneral);
-    if (lectura > 510 ) lectura = 510 + (510 - lectura); // calculamos el valor medio de la onda sinusoidal del trafo que mide la intensidad general
+    if (lectura < 510 ) lectura = (1020 - lectura);
     acumIntensidadGeneral += lectura;
     
     acumIntensidadFV += analogRead(pinGeneracionFV); // en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
                                                      // sinó la añalógica del plc la que le envía el valor
     numCiclos++;
-    if (numCiclos > 999){
+    if (numCiclos > 499){
       
       tensionCargador = acumTensionCargador / numCiclos;
       mediaIntensidadCargador = acumIntensidadCargador / numCiclos;
@@ -461,7 +461,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 1:   //Pantalla selecion configuracion
+      case 1:   //Pantalla selección configuración
         switch (button){
           case BOTONINICIO:
             if (opcionNumero == 0){
@@ -1134,12 +1134,12 @@ void updateScreen(){
         lcd.print(F("CARGADO "));
         lcd.print(watiosCargados / 100);
         lcd.print(F(" Wh"));
-      }else if (conectado){
+      }else if (conectado){ // esto ya no se va a cumplir nunca (creo)
         lcd.print(F("COCHE CONECTADO "));
         lcd.setCursor(0, 1);
         lcd.print(F("A LA ESPERA....."));
       }else{
-        lcd.print(F(" WALLBOX FEBOAB "));
+        // lcd.print(F(" WALLBOX FEBOAB ")); (lo elimino para que muestre el TC arriba y la hora abajo)
         String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
         hora += ":";
         hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
@@ -1149,7 +1149,7 @@ void updateScreen(){
         lcd.print(F("     "));
       }
       break;
-    case 1:   //Pantalla seleccion configuracion
+    case 1:   //Pantalla selección configuración
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("OPCIONES:"));
