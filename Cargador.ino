@@ -102,7 +102,7 @@ void setup() {
   Serial.begin(9600); // Iniciamos el puerto serie
 
   if (!rtc.begin()) { // Comprobamos la comunicación con el reloj RTC
-    Serial.println(F("ERROR, SIN CONEX AL RELOJ\n"));
+    Serial.println(F("ERROR, SIN CONEX AL RELOJ"));
     while (1);
   }
   
@@ -238,6 +238,9 @@ void loop() {
           tiempoUltimaPulsacionBoton = actualMillis;
         }
       }else if (!conectado && antesConectado){
+        if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+        else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
         antesConectado = false;
         if (!luzLcd){
           lcd.setBacklight(HIGH);
@@ -428,9 +431,6 @@ void FinalizarCarga(){
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
-  if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
-  else if (conTarifaValle)tipoCarga = TARIFAVALLE;
-  else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
