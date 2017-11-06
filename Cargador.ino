@@ -230,15 +230,14 @@ void loop() {
         if (!inicioCargaActivado){
           if (conFV){
             if (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga)){
-              tipoCarga == INTELIGENTE;
-              tipoCargaInteligente = EXCEDENTESFV;
+              tipoCarga = INTELIGENTE;
               IniciarCarga();
             }
           }else if (conTarifaValle){
-            tipoCarga == TARIFAVALLE;
+            tipoCarga = TARIFAVALLE;
             IniciarCarga();
           }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
-            tipoCarga == FRANJAHORARIA;
+            tipoCarga = FRANJAHORARIA;
             IniciarCarga();
           }
         }
