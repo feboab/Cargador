@@ -175,7 +175,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.34 ****"));
+  lcd.print(F("**** V 1.34a ***"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -1439,7 +1439,17 @@ void updateScreen(){
       lcd.print(tempValorInt);
       lcd.print(F(" A"));
       break;
-    case 130:
+    case 121:
+    case 122:
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print(F("AJUSTE:"));
+      lcd.setCursor(6, 1);
+      if (tempValorInt < 10)lcd.print(F(" "));
+      lcd.print(tempValorInt);
+      lcd.print(F(" min."));
+      break;
+      case 130:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE A")); lcd.write(1); lcd.print(F("O:"));
