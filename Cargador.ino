@@ -7,7 +7,7 @@
 LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Algunas pantallas llevan por defecto la dirección 27 y otras la 3F
 
 //              DEFINICIÓN PINES ENTRADAS ANALOGICAS
-const int pinGeneracionFV = 0;      // define el pin 0 como 'Generacion FV'
+const int pinGeneracionFV = 0;      // define el pin 0 como 'Generación FV'
 const int pinConsumoGeneral = 1;    // define el pin 1 como 'Consumo General'
 const int pinTensionCargador = 2;   // define el pin 2 como 'Tension'
 const int pinConsumoCargador = 3;   // define el pin 3 como 'Consumo Cargador'
@@ -897,7 +897,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 117:   //Pantalla ajuste con generacion FV
+      case 117:   //Pantalla ajuste con generación FV
         switch (button){
           case BOTONINICIO:
             conFV = tempValorBool;
@@ -914,7 +914,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 118:   //Pantalla ajuste generacion minina
+      case 118:   //Pantalla ajuste generación mínima
         switch (button){
           case BOTONINICIO:
             generacionMinima = tempValorInt;
@@ -930,10 +930,13 @@ void ProcesarBoton(int button){
           case BOTONPROG:
             enPantallaNumero = 11;
             break;
+		}
+        updateScreen();
+		break;
       case 119:   //Pantalla ajuste Carga por Excedentes
         switch (button){
           case BOTONINICIO:
-            conFV = tempValorBool;
+            cargaPorExcedentes = tempValorBool;
             EEPROM.write(22, cargaPorExcedentes);
             enPantallaNumero = 11;
             break;
@@ -944,8 +947,6 @@ void ProcesarBoton(int button){
           case BOTONPROG:
             enPantallaNumero = 11;
             break;
-        }
-        updateScreen();
         }
         updateScreen();
         break;
@@ -985,7 +986,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 122:   //Pantalla ajuste tiempo sin generacion
+      case 122:   //Pantalla ajuste tiempo sin generación
         switch (button){
           case BOTONINICIO:
             tiempoSinGeneracion = tempValorInt;
@@ -1004,7 +1005,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 123:   //Pantalla ajuste tiempo con generacion
+      case 123:   //Pantalla ajuste tiempo con generación
         switch (button){
           case BOTONINICIO:
             tiempoConGeneracion = tempValorInt;
@@ -1039,7 +1040,8 @@ void ProcesarBoton(int button){
             break;
         }
         updateScreen();
-		case 125:   //Pantalla Bloquear Cargador
+		break;
+	  case 125:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
