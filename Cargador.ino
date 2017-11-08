@@ -683,7 +683,7 @@ void ProcesarBoton(int button){
                 break;
               case 14:
                 enPantallaNumero = 124;
-                tempValorInt = apagarLCD;
+                tempValorBool = apagarLCD;
                 break;
               case 15:
                 enPantallaNumero = 125;
@@ -1422,36 +1422,46 @@ void updateScreen(){
           lcd.print(generacionMinima);
           lcd.print(F(" A"));
           break;
-        case 9:
+		  case 9:
+          lcd.print(F("CARGA POR EXCED:"));
+          lcd.setCursor(7, 1);
+          (cargaPorExcedentes) ? lcd.print(F("SI")) : lcd.print(F("NO"));
+          break;
+        case 10:
           lcd.print(F("TARIFA DISC HOR:"));
           lcd.setCursor(7, 1);
           (conTarifaValle) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
-        case 10:
+        case 11:
           lcd.print(F("CONSU TOTAL MAX:"));
           lcd.setCursor(6, 1);
           if (consumoTotalMax < 10)lcd.print(F(" "));
           lcd.print(consumoTotalMax);
           lcd.print(F(" A"));
           break;
-        case 11:
+        case 12:
           lcd.print(F("TIEMPO SIN F.V.:"));
           lcd.setCursor(6, 1);
           if (tiempoSinGeneracion < 10)lcd.print(F(" "));
           lcd.print(tiempoSinGeneracion);
           lcd.print(F(" min"));
           break;
-        case 12:
+        case 13:
           lcd.print(F("TIEMPO CON F.V.:"));
           lcd.setCursor(6, 1);
           if (tiempoConGeneracion < 10)lcd.print(F(" "));
           lcd.print(tiempoConGeneracion);
           lcd.print(F(" min"));
           break;
-		case 13:
+		case 14:
           lcd.print(F("APAGAR LCD:     "));
           lcd.setCursor(7, 1);
           (apagarLCD) ? lcd.print(F("SI")) : lcd.print(F("NO"));
+          break;
+		  case 15:
+          lcd.print(F("BLOQ. CARGADOR: "));
+          lcd.setCursor(7, 1);
+          (bloquearCargador) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
       }
       break;
