@@ -37,7 +37,7 @@ const int BOTONPROG = 3;
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, tiempoSinGeneracion = 0, tiempoConGeneracion = 0;
-bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, apagarLCD = true, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 bool permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
@@ -96,6 +96,8 @@ void setup() {
   tiempoSinGeneracion = EEPROM.read(19);
   tiempoConGeneracion = EEPROM.read(20);
   apagarLCD = EEPROM.read(21);
+  cargaPorExcedentes = EEPROM.read(22);
+  bloquearCargador = EEPROM.read(23);
 	
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
   lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
@@ -128,12 +130,14 @@ void setup() {
     rtc.adjust(date);
     horarioVerano = EsHorarioVerano(date);
     EEPROM.write(14, horarioVerano);
-	tiempoSinGeneracion = 15;
-	EEPROM.write(19, tiempoSinGeneracion);
-	tiempoConGeneracion = 15;
-	EEPROM.write(20, tiempoConGeneracion);
-	apagarLCD = true;
+    tiempoSinGeneracion = 15;
+    EEPROM.write(19, tiempoSinGeneracion);
+    tiempoConGeneracion = 15;
+    EEPROM.write(20, tiempoConGeneracion);
+    apagarLCD = true;
     EEPROM.write(21, apagarLCD);
+	EEPROM.write(22, cargaPorExcedentes);
+	EEPROM.write(23, bloquearCargador);
   }
   if (generacionMinima > 32) {
     generacionMinima = 2;
@@ -178,7 +182,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.35 ****"));
+  lcd.print(F("**** V 1.36 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -659,31 +663,39 @@ void ProcesarBoton(int button){
                 break;
               case 9:
                 enPantallaNumero = 119;
-                tempValorBool = conTarifaValle;
+                tempValorBool = cargaPorExcedentes;
                 break;
               case 10:
                 enPantallaNumero = 120;
-                tempValorInt = consumoTotalMax;
+                tempValorBool = conTarifaValle;
                 break;
               case 11:
                 enPantallaNumero = 121;
-                tempValorInt = tiempoSinGeneracion;
+                tempValorInt = consumoTotalMax;
                 break;
               case 12:
                 enPantallaNumero = 122;
-                tempValorInt = tiempoConGeneracion;
+                tempValorInt = tiempoSinGeneracion;
                 break;
               case 13:
                 enPantallaNumero = 123;
+                tempValorInt = tiempoConGeneracion;
+                break;
+              case 14:
+                enPantallaNumero = 124;
                 tempValorInt = apagarLCD;
+                break;
+              case 15:
+                enPantallaNumero = 125;
+                tempValorBool = bloquearCargador;
                 break;
 			}
             break;
           case BOTONMAS:
-            (opcionNumero >= 13) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 15) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero <= 0) ? opcionNumero = 13 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 15 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -918,10 +930,26 @@ void ProcesarBoton(int button){
           case BOTONPROG:
             enPantallaNumero = 11;
             break;
+      case 119:   //Pantalla ajuste Carga por Excedentes
+        switch (button){
+          case BOTONINICIO:
+            conFV = tempValorBool;
+            EEPROM.write(22, cargaPorExcedentes);
+            enPantallaNumero = 11;
+            break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool = (tempValorBool) ? false : true;
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 11;
+            break;
+        }
+        updateScreen();
         }
         updateScreen();
         break;
-      case 119:   //Pantalla ajuste con tarifa valle
+      case 120:   //Pantalla ajuste con tarifa valle
         switch (button){
           case BOTONINICIO:
             conTarifaValle = tempValorBool;
@@ -938,7 +966,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 120:   //Pantalla ajuste consumo maximo total
+      case 121:   //Pantalla ajuste consumo maximo total
         switch (button){
           case BOTONINICIO:
             consumoTotalMax = tempValorInt;
@@ -957,7 +985,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 121:   //Pantalla ajuste tiempo sin generacion
+      case 122:   //Pantalla ajuste tiempo sin generacion
         switch (button){
           case BOTONINICIO:
             tiempoSinGeneracion = tempValorInt;
@@ -976,7 +1004,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 122:   //Pantalla ajuste tiempo con generacion
+      case 123:   //Pantalla ajuste tiempo con generacion
         switch (button){
           case BOTONINICIO:
             tiempoConGeneracion = tempValorInt;
@@ -995,11 +1023,27 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	  case 123:   //Pantalla ajuste apagar LCD
+	  case 124:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
             EEPROM.write(21, apagarLCD);
+            enPantallaNumero = 11;
+            break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool = (tempValorBool) ? false : true;
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 11;
+            break;
+        }
+        updateScreen();
+		case 125:   //Pantalla Bloquear Cargador
+        switch (button){
+          case BOTONINICIO:
+            apagarLCD = tempValorBool;
+            EEPROM.write(23, bloquearCargador);
             enPantallaNumero = 11;
             break;
           case BOTONMAS:
@@ -1450,8 +1494,10 @@ void updateScreen(){
     case 114:
     case 116:
     case 117:
-    case 119:
-	case 123:
+	case 119:
+    case 120:
+	case 124:
+	case 125:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
@@ -1460,7 +1506,7 @@ void updateScreen(){
       break;
     case 115:
     case 118:
-    case 120:
+    case 121:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
@@ -1469,8 +1515,8 @@ void updateScreen(){
       lcd.print(tempValorInt);
       lcd.print(F(" A"));
       break;
-    case 121:
     case 122:
+    case 123:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
@@ -1647,7 +1693,7 @@ void CalcularEnergias(){
 int CalcularDuracionPulso(){
   int pulso;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
-    if (!conSensorGeneral) pulso = ((generacionFVAmperios * 100 / 6) - 28);
+    if (!conSensorGeneral || !cargaPorExcedentes) pulso = ((generacionFVAmperios * 100 / 6) - 28);
 	else pulso = (((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28);
   }else{
     int consumo = ObtenerConsumoRestante();
