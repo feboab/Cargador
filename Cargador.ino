@@ -37,14 +37,14 @@ const int BOTONPROG = 3;
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, tiempoSinGeneracion = 0, tiempoConGeneracion = 0;
-bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 bool permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
-byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0;
+byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
 const float factor = 0.244;
@@ -103,6 +103,7 @@ void setup() {
   lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
   lcd.setBacklight(HIGH); //Encendemos la retoiluminación del display LCD
   luzLcd = true;
+  pantallaBloqueada = false;
   
   Serial.begin(9600); // Iniciamos el puerto serie
 
@@ -136,8 +137,10 @@ void setup() {
     EEPROM.write(20, tiempoConGeneracion);
     apagarLCD = true;
     EEPROM.write(21, apagarLCD);
-	EEPROM.write(22, cargaPorExcedentes);
-	EEPROM.write(23, bloquearCargador);
+    cargaPorExcedentes = true;
+    EEPROM.write(22, cargaPorExcedentes);
+    bloquearCargador = false;
+    EEPROM.write(23, bloquearCargador);
   }
   if (generacionMinima > 32) {
     generacionMinima = 2;
@@ -417,13 +420,16 @@ void loop() {
     tiempoOffBoton = actualMillis;
   }
   
-  if (luzLcd && apagarLCD){
+  if (luzLcd){
     if (tiempoUltimaPulsacionBoton > actualMillis) tiempoUltimaPulsacionBoton = actualMillis;
     if (actualMillis - tiempoUltimaPulsacionBoton >= 600000l){
-      luzLcd = false;
-      enPantallaNumero = 0;
-      lcd.clear();
-      lcd.setBacklight(LOW);
+      if (apagarLCD || bloquearCargador){
+        luzLcd = false;
+        enPantallaNumero = 0;
+        lcd.clear();
+        lcd.setBacklight(LOW);
+        if (bloquearCargador) pantallaBloqueada = true;
+      }
     }
   }
   ticksScreen++;
@@ -454,8 +460,8 @@ void FinalizarCarga(){
 }
 
 void ProcesarBoton(int button){
-  tiempoUltimaPulsacionBoton = millis();
-  if (luzLcd){
+  unsigned long tempMillis = millis();
+  if (luzLcd && !pantallaBloqueada){
     switch(enPantallaNumero){
       case 0:   // pantalla principal
         switch (button){
@@ -689,7 +695,7 @@ void ProcesarBoton(int button){
                 enPantallaNumero = 125;
                 tempValorBool = bloquearCargador;
                 break;
-			}
+            }
             break;
           case BOTONMAS:
             (opcionNumero >= 15) ? opcionNumero = 0 : opcionNumero++;
@@ -1024,7 +1030,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	  case 124:   //Pantalla ajuste apagar LCD
+	    case 124:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
@@ -1040,11 +1046,11 @@ void ProcesarBoton(int button){
             break;
         }
         updateScreen();
-		break;
-	  case 125:   //Pantalla Bloquear Cargador
+        break;
+	    case 125:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
-            apagarLCD = tempValorBool;
+            bloquearCargador = tempValorBool;
             EEPROM.write(23, bloquearCargador);
             enPantallaNumero = 11;
             break;
@@ -1171,77 +1177,41 @@ void ProcesarBoton(int button){
         break;
     }
   }else{
-    updateScreen();
-    luzLcd = true;
-    lcd.setBacklight(HIGH);
+    if (!luzLcd){
+      updateScreen();
+      luzLcd = true;
+      lcd.setBacklight(HIGH);
+    }else if (pantallaBloqueada){
+      switch (button){
+        case BOTONINICIO:
+          (codigoDesbloqueo == 1 && (tempMillis - tiempoUltimaPulsacionBoton) < 1000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
+          break;
+        case BOTONMAS:
+          (codigoDesbloqueo == 2 && (tempMillis - tiempoUltimaPulsacionBoton) < 1000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
+          break;
+        case BOTONMENOS:
+          (codigoDesbloqueo == 3 && (tempMillis - tiempoUltimaPulsacionBoton) < 1000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
+          if (codigoDesbloqueo == 4){
+            codigoDesbloqueo = 0;
+            pantallaBloqueada = false;
+            updateScreen();
+          }
+          break;
+        case BOTONPROG:
+          codigoDesbloqueo = 1;
+          break;
+      }
+    }
   }
+  tiempoUltimaPulsacionBoton = tempMillis;
 }
 
 void updateScreen(){
   switch(enPantallaNumero){
     case 0:   //Pantalla principal
       lcd.setCursor(0, 0);
-	  MostrarTipoCarga();
-      if (inicioCargaActivado){
-        if (cargando){
-          MostrarPantallaCarga();
-        }else if (conectado){
-          switch (tipoCarga){
-	    case EXCEDENTESFV:
-	      if (generacionFVAmperios >= 1) {
-	      lcd.setCursor(0, 1);
-	      lcd.print(F("GEN. FV INSUFIC."));
-	      }
-	      break;
-	    case INTELIGENTE:
-	      if (generacionFVAmperios >= 1) {
-	      lcd.setCursor(0, 1);
-	      lcd.print(F("GEN. FV INSUFIC."));
-	      }
-	      else if (conTarifaValle) {
-	      lcd.setCursor(0, 1);
-	      lcd.print(F("INI.CARG:"));
-	      tempValorInt = (horarioVerano) ? 1380 : 1320;
-	      MostrarTiempoRestante(tempValorInt);
-	      }
-	      else {
-	      lcd.setCursor(0, 1);
-	      lcd.print(F("INI.CARG:"));
-	      tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
-	      MostrarTiempoRestante(tempValorInt);
-              }
-	      break;
-            case FRANJAHORARIA:
-              lcd.setCursor(0, 1);
-              lcd.print(F("INI.CARG:"));
-              tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
-              MostrarTiempoRestante(tempValorInt);
-              break;
-            case TARIFAVALLE:
-              lcd.setCursor(0, 1);
-              lcd.print(F("INI.CARG:"));
-              tempValorInt = (horarioVerano) ? 1380 : 1320;
-              MostrarTiempoRestante(tempValorInt);
-              break;
-            case TIEMPO:
-            case INMEDIATA:
-            case ENERGIA:
-              MostrarPantallaCarga();
-              break;
-          }
-        }else{
-          lcd.setCursor(0, 1);
-          lcd.print(F("COCHE NO CONECT."));
-        }
-      }else if (cargaCompleta){
-        lcd.setCursor(0, 1);
-        lcd.print(F("CARGADO "));
-        lcd.print(watiosCargados / 100);
-        lcd.print(F(" Wh"));
-      }else if (conectado){
-        lcd.setCursor(0, 1);
-        lcd.print(F("COCHE CONECTADO "));
-      }else{
+      if (pantallaBloqueada){
+        lcd.print(F("PANT. BLOQUEADA."));
         String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
         hora += ":";
         hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
@@ -1249,6 +1219,74 @@ void updateScreen(){
         lcd.print(F("      "));
         lcd.print(hora);
         lcd.print(F("     "));
+      }else{
+        MostrarTipoCarga();
+        if (inicioCargaActivado){
+          if (cargando){
+            MostrarPantallaCarga();
+          }else if (conectado){
+            switch (tipoCarga){
+              case EXCEDENTESFV:
+                if (generacionFVAmperios >= 1) {
+                  lcd.setCursor(0, 1);
+                  lcd.print(F("GEN. FV INSUFIC."));
+                }
+                break;
+              case INTELIGENTE:
+                if (generacionFVAmperios >= 1) {
+                  lcd.setCursor(0, 1);
+                  lcd.print(F("GEN. FV INSUFIC."));
+                }else if (conTarifaValle){
+                  lcd.setCursor(0, 1);
+                  lcd.print(F("INI.CARG:"));
+                  tempValorInt = (horarioVerano) ? 1380 : 1320;
+                  MostrarTiempoRestante(tempValorInt);
+                }else{
+                  lcd.setCursor(0, 1);
+                  lcd.print(F("INI.CARG:"));
+                  tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
+                  MostrarTiempoRestante(tempValorInt);
+                }
+                break;
+              case FRANJAHORARIA:
+                lcd.setCursor(0, 1);
+                lcd.print(F("INI.CARG:"));
+                tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
+                MostrarTiempoRestante(tempValorInt);
+                break;
+              case TARIFAVALLE:
+                lcd.setCursor(0, 1);
+                lcd.print(F("INI.CARG:"));
+                tempValorInt = (horarioVerano) ? 1380 : 1320;
+                MostrarTiempoRestante(tempValorInt);
+                break;
+              case TIEMPO:
+              case INMEDIATA:
+              case ENERGIA:
+                MostrarPantallaCarga();
+                break;
+            }
+          }else{
+            lcd.setCursor(0, 1);
+            lcd.print(F("COCHE NO CONECT."));
+          }
+        }else if (cargaCompleta){
+          lcd.setCursor(0, 1);
+          lcd.print(F("CARGADO "));
+          lcd.print(watiosCargados / 100);
+          lcd.print(F(" Wh"));
+        }else if (conectado){
+          lcd.setCursor(0, 1);
+          lcd.print(F("COCHE CONECTADO "));
+        }else{
+          String hora = (timeNow.hour() < 10) ? "0" + (String)timeNow.hour() : (String)timeNow.hour();
+          hora += ":";
+          hora += (timeNow.minute() < 10) ? "0" + (String)timeNow.minute() : (String)timeNow.minute();
+          lcd.setCursor(0, 1);
+          lcd.print(F("      "));
+          lcd.print(hora);
+          lcd.print(F("     "));
+        }
       }
       break;
     case 1:   //Pantalla selección configuración
@@ -1443,7 +1481,7 @@ void updateScreen(){
           lcd.print(generacionMinima);
           lcd.print(F(" A"));
           break;
-		  case 9:
+        case 9:
           lcd.print(F("CARGA POR EXCED:"));
           lcd.setCursor(7, 1);
           (cargaPorExcedentes) ? lcd.print(F("SI")) : lcd.print(F("NO"));
@@ -1474,12 +1512,12 @@ void updateScreen(){
           lcd.print(tiempoConGeneracion);
           lcd.print(F(" min"));
           break;
-		case 14:
+        case 14:
           lcd.print(F("APAGAR LCD:     "));
           lcd.setCursor(7, 1);
           (apagarLCD) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
-		  case 15:
+        case 15:
           lcd.print(F("BLOQ. CARGADOR: "));
           lcd.setCursor(7, 1);
           (bloquearCargador) ? lcd.print(F("SI")) : lcd.print(F("NO"));
@@ -1525,10 +1563,10 @@ void updateScreen(){
     case 114:
     case 116:
     case 117:
-	case 119:
+    case 119:
     case 120:
-	case 124:
-	case 125:
+    case 124:
+    case 125:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
@@ -1725,7 +1763,7 @@ int CalcularDuracionPulso(){
   int pulso;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
     if (!conSensorGeneral || !cargaPorExcedentes) pulso = ((generacionFVAmperios * 100 / 6) - 28);
-	else pulso = (((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28);
+	  else pulso = (((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28);
   }else{
     int consumo = ObtenerConsumoRestante();
     if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la intensidad programada y tenemos el sensor general conectado..
