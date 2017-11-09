@@ -182,7 +182,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.36 ****"));
+  lcd.print(F("**** V 1.36a ***"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -1187,11 +1187,30 @@ void updateScreen(){
           MostrarPantallaCarga();
         }else if (conectado){
           switch (tipoCarga){
-            case EXCEDENTESFV:
-            case INTELIGENTE:
-              lcd.setCursor(0, 1);
-              lcd.print(F("GEN. FV INSUFIC."));
-              break;
+	    case EXCEDENTESFV:
+	      if (generacionFVAmperios >= 1) {
+	      lcd.setCursor(0, 1);
+	      lcd.print(F("GEN. FV INSUFIC."));
+	      }
+	      break;
+	    case INTELIGENTE:
+	      if (generacionFVAmperios >= 1) {
+	      lcd.setCursor(0, 1);
+	      lcd.print(F("GEN. FV INSUFIC."));
+	      }
+	      else if (conTarifaValle) {
+	      lcd.setCursor(0, 1);
+	      lcd.print(F("INI.CARG:"));
+	      tempValorInt = (horarioVerano) ? 1380 : 1320;
+	      MostrarTiempoRestante(tempValorInt);
+	      }
+	      else {
+	      lcd.setCursor(0, 1);
+	      lcd.print(F("INI.CARG:"));
+	      tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
+	      MostrarTiempoRestante(tempValorInt);
+              }
+	      break;
             case FRANJAHORARIA:
               lcd.setCursor(0, 1);
               lcd.print(F("INI.CARG:"));
