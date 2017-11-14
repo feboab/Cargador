@@ -40,7 +40,7 @@ byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consu
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -92,7 +92,7 @@ void setup() {
   valorTipoCarga = EEPROM.read(12);
   inicioCargaActivado = EEPROM.read(13);
   horarioVerano = EEPROM.read(14);
-  kwTotales = EEPROMReadlong(15); // Este dato ocuparia 4 Bytes, direcciones 15, 16, 17 y 18.
+  kwTotales = EEPROMReadlong(15); // Este dato ocupa 4 Bytes, direcciones 15, 16, 17 y 18.
   tiempoSinGeneracion = EEPROM.read(19);
   tiempoConGeneracion = EEPROM.read(20);
   apagarLCD = EEPROM.read(21);
@@ -108,7 +108,11 @@ void setup() {
   Serial.begin(9600); // Iniciamos el puerto serie
 
   if (!rtc.begin()) { // Comprobamos la comunicación con el reloj RTC
-    Serial.println(F("ERROR, SIN CONEX AL RELOJ"));
+  lcd.setCursor(0, 0);
+  lcd.print(F("  SIN CONEXION  "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("CON EL RELOJ RTC"));
+  delay(2000);
     while (1);
   }
   
@@ -141,39 +145,22 @@ void setup() {
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
-  }
-  if (generacionMinima > 32) {
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
-  }
-  if (minutoInicioCarga > 59) {
     minutoInicioCarga = 0;
     EEPROM.write(1, minutoInicioCarga);
-  }
-  if (intensidadProgramada < 6 || intensidadProgramada > 32){ // Corregimos el valor de la Intensidad Programada si fuese necesario .... 
     intensidadProgramada = 6;
     EEPROM.write(2, intensidadProgramada);
-  }
-  if (consumoTotalMax > 63) {
     consumoTotalMax = 32;
-    EEPROM.write(3, consumoTotalMax); //Si el valor es erroneo lo ponemos a 32
-  }
-  if (horaFinCarga > 23) {
+    EEPROM.write(3, consumoTotalMax);
     horaFinCarga = 0;
-    EEPROM.write(4, horaFinCarga);//Si el valor es erroneo lo ponemos a 0
-  }
-  if (minutoFinCarga > 59) {
+    EEPROM.write(4, horaFinCarga);
     minutoFinCarga = 0;
-    EEPROM.write(5, minutoFinCarga); //Si el valor es erroneo lo ponemos a 0
-  }
-  if (tipoCarga > 6){
+    EEPROM.write(5, minutoFinCarga);
     tipoCarga = 0;
-    EEPROM.write(11, tipoCarga); //Si el valor es erroneo lo ponemos a 0
-  }
-  
-  if (kwTotales > 4000000000) {
+    EEPROM.write(11, tipoCarga);
     kwTotales = 0;
-    EEPROM.write(15, 0);//Si el valor es erroneo  reseteamos el valor de los KW acumulados
+    EEPROM.write(15, 0);
     EEPROM.write(16, 0);
     EEPROM.write(17, 0);
     EEPROM.write(18, 0);
@@ -185,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.36a ***"));
+  lcd.print(F("**** V 1.39 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -228,7 +215,7 @@ void loop() {
     if (lectura < 510) lectura = 1020 - lectura;
     acumIntensidadGeneral += lectura;
     
-    acumIntensidadFV += analogRead(pinGeneracionFV); // en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
+    acumIntensidadFV += analogRead(pinGeneracionFV); // (Adaptado a RSM) en el caso de la FV no aplico el mismo criterio porque no es un trafo, 
                                                      // sinó la añalógica del plc la que le envía el valor
     numCiclos++;
     if (numCiclos > 499){
@@ -253,7 +240,21 @@ void loop() {
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
-      
+	  
+	  
+    //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA   *******************
+	  if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
+	  if (cargaAntesEcu && consumoCargadorAmperios < 4) {
+		  cargaEcu = true;
+		  cargaAntesEcu = false;
+		  }
+	  if (cargaEcu && conectado && !cargando) {
+		  bateriaCargada = true;
+		  cargaEcu = false;
+		  }
+	  
+	  
+      //*********************   CONTROL DE CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
       if (conectado && !antesConectado){
         if (!inicioCargaActivado && (tipoCarga == INTELIGENTE || tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE)) IniciarCarga();
         antesConectado = true;
@@ -275,6 +276,7 @@ void loop() {
         }
       }
 	  
+	  //*********************   CONTROL DEL HORARIO VERANO / INVIERNO   *******************
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -293,6 +295,8 @@ void loop() {
           EEPROM.write(14, horarioVerano);
         }
       }
+	  
+	  //*********************   GESTIÓN  DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado){
         if (!cargando && !cargaCompleta){
           bool puedeCargar = false;
@@ -369,10 +373,10 @@ void loop() {
                   }
                   break;
                 case TARIFAVALLE:
-                  if (!EnTarifaValle(horaNow)) FinalizarCarga();
+                  if (!EnTarifaValle(horaNow)) permisoCarga = false;
                   break;
                 case FRANJAHORARIA:
-                  if (!EnFranjaHoraria(horaNow, minutoNow)) FinalizarCarga();
+                  if (!EnFranjaHoraria(horaNow, minutoNow)) permisoCarga = false;
                   break;
               }
               break;
@@ -444,6 +448,7 @@ void IniciarCarga(){
   watiosCargados = 0;
   cargaCompleta = false;
   inicioCargaActivado = true;
+  bateriaCargada = false;
   EEPROM.write(11, tipoCarga);
   EEPROM.write(13, inicioCargaActivado);
 }
@@ -452,9 +457,15 @@ void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
+  bateriaCargada = false;
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
+  if (!cargaCompleta) { 
+   if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+        else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
+	}			
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -463,7 +474,7 @@ void ProcesarBoton(int button){
   unsigned long tempMillis = millis();
   if (luzLcd && !pantallaBloqueada){
     switch(enPantallaNumero){
-      case 0:   // pantalla principal
+      case 0:   // Pantalla principal
         switch (button){
           case BOTONINICIO:
             if (inicioCargaActivado){
@@ -517,7 +528,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 2:    // seleccion del tipo de carga
+      case 2:    // Selección del tipo de carga
         switch (button){
           case BOTONINICIO:
             switch (opcionNumero){
@@ -589,7 +600,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 4:   //Pantalla finalizacion carga
+      case 4:   //Pantalla finalización carga
         switch (button){
           case BOTONINICIO:
             if (tempValorBool) FinalizarCarga();
@@ -605,7 +616,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 10:    //Pantalla visualizacion datos
+      case 10:    //Pantalla visualización datos
         switch (button){
           case BOTONINICIO:
             if (opcionNumero == 0){
@@ -627,7 +638,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 11:    //Pantalla ajuste configuracion
+      case 11:    //Pantalla ajuste configuración
         switch (button){
           case BOTONINICIO:
             switch(opcionNumero){
@@ -710,7 +721,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 20:    // seleccion de Energía a cargar
+      case 20:    // Selección de Energía a cargar
         switch (button){
           case BOTONINICIO:
             tipoCarga = ENERGIA;
@@ -973,7 +984,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 121:   //Pantalla ajuste consumo maximo total
+      case 121:   //Pantalla ajuste consumo máximo total
         switch (button){
           case BOTONINICIO:
             consumoTotalMax = tempValorInt;
@@ -1100,7 +1111,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 132:    //Ajuste del dia
+      case 132:    //Ajuste del día
         switch (button){
           case BOTONINICIO:
             enPantallaNumero = 133;
@@ -1181,16 +1192,16 @@ void ProcesarBoton(int button){
       updateScreen();
       luzLcd = true;
       lcd.setBacklight(HIGH);
-    }else if (pantallaBloqueada){
+    }else if (pantallaBloqueada){ // Código de desbloqueo " PROG - INICIO - MAS - MENOS "
       switch (button){
         case BOTONINICIO:
-          (codigoDesbloqueo == 1 && (tempMillis - tiempoUltimaPulsacionBoton) < 1000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
+          (codigoDesbloqueo == 1 && (tempMillis - tiempoUltimaPulsacionBoton) < 2000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
           break;
         case BOTONMAS:
-          (codigoDesbloqueo == 2 && (tempMillis - tiempoUltimaPulsacionBoton) < 1000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
+          (codigoDesbloqueo == 2 && (tempMillis - tiempoUltimaPulsacionBoton) < 2000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
           break;
         case BOTONMENOS:
-          (codigoDesbloqueo == 3 && (tempMillis - tiempoUltimaPulsacionBoton) < 1000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
+          (codigoDesbloqueo == 3 && (tempMillis - tiempoUltimaPulsacionBoton) < 2000) ? codigoDesbloqueo++ : codigoDesbloqueo = 0;
           if (codigoDesbloqueo == 4){
             codigoDesbloqueo = 0;
             pantallaBloqueada = false;
@@ -1227,10 +1238,8 @@ void updateScreen(){
           }else if (conectado){
             switch (tipoCarga){
               case EXCEDENTESFV:
-                if (generacionFVAmperios >= 1) {
-                  lcd.setCursor(0, 1);
-                  lcd.print(F("GEN. FV INSUFIC."));
-                }
+                 lcd.setCursor(0, 1);
+                 lcd.print(F("GEN. FV INSUFIC."));
                 break;
               case INTELIGENTE:
                 if (generacionFVAmperios >= 1) {
@@ -1274,7 +1283,7 @@ void updateScreen(){
           lcd.setCursor(0, 1);
           lcd.print(F("CARGADO "));
           lcd.print(watiosCargados / 100);
-          lcd.print(F(" Wh"));
+          lcd.print(F(" Wh    "));
         }else if (conectado){
           lcd.setCursor(0, 1);
           lcd.print(F("COCHE CONECTADO "));
