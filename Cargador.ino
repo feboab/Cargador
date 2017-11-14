@@ -40,7 +40,7 @@ byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consu
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+bool permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.39 ****"));
+  lcd.print(F("**** V 1.40 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -241,19 +241,6 @@ void loop() {
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
 	  
-	  
-    //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA   *******************
-	  if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
-	  if (cargaAntesEcu && consumoCargadorAmperios < 4) {
-		  cargaEcu = true;
-		  cargaAntesEcu = false;
-		  }
-	  if (cargaEcu && conectado && !cargando) {
-		  bateriaCargada = true;
-		  cargaEcu = false;
-		  }
-	  
-	  
       //*********************   CONTROL DE CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
       if (conectado && !antesConectado){
         if (!inicioCargaActivado && (tipoCarga == INTELIGENTE || tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE)) IniciarCarga();
@@ -264,7 +251,7 @@ void loop() {
           tiempoUltimaPulsacionBoton = actualMillis;
         }
       }else if (!conectado && antesConectado){
-		if (inicioCargaActivado) FinalizarCarga();
+		    if (inicioCargaActivado) FinalizarCarga();
         if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
         else if (conTarifaValle)tipoCarga = TARIFAVALLE;
         else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
@@ -454,7 +441,6 @@ void IniciarCarga(){
   watiosCargados = 0;
   cargaCompleta = false;
   inicioCargaActivado = true;
-  bateriaCargada = false;
   EEPROM.write(11, tipoCarga);
   EEPROM.write(13, inicioCargaActivado);
 }
@@ -463,7 +449,6 @@ void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
-  bateriaCargada = false;
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
