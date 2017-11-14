@@ -373,10 +373,16 @@ void loop() {
                   }
                   break;
                 case TARIFAVALLE:
-                  if (!EnTarifaValle(horaNow)) permisoCarga = false;
+                  if (!EnTarifaValle(horaNow)){
+                    permisoCarga = false;
+                    digitalWrite(pinAlimentacionCargador, LOW);
+                  }
                   break;
                 case FRANJAHORARIA:
-                  if (!EnFranjaHoraria(horaNow, minutoNow)) permisoCarga = false;
+                  if (!EnFranjaHoraria(horaNow, minutoNow)){
+                    permisoCarga = false;
+                    digitalWrite(pinAlimentacionCargador, LOW);
+                  }
                   break;
               }
               break;
