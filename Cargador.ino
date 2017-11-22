@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.39a ***"));
+  lcd.print(F("**** V 1.42 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -361,7 +361,7 @@ void loop() {
             case EXCEDENTESFV:
               if (!HayExcedentesFV()){
                 permisoCarga = false;
-                digitalWrite(pinAlimentacionCargador, LOW);
+	        if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW); // V142
               }
               break;
             case INTELIGENTE:
@@ -369,22 +369,22 @@ void loop() {
                 case EXCEDENTESFV:
                   if (!HayExcedentesFV()){
                     permisoCarga = false;
-                    digitalWrite(pinAlimentacionCargador, LOW);
+                    if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW);
                   }
                   break;
                 case TARIFAVALLE:
                   if (!EnTarifaValle(horaNow) && !HayExcedentesFV()) {
                     permisoCarga = false; 
-                    digitalWrite(pinAlimentacionCargador, LOW);
+                    if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW);
                     }
-				  if (!EnTarifaValle(horaNow)) tipoCargaInteligente = EXCEDENTESFV;
+		  if (!EnTarifaValle(horaNow)) tipoCargaInteligente = EXCEDENTESFV;
                   break;
                 case FRANJAHORARIA:
                   if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()) {
                     permisoCarga = false; 
-                    digitalWrite(pinAlimentacionCargador, LOW);
+                    if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW);
                     }
-				  if (!EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = EXCEDENTESFV;
+		  if (!EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = EXCEDENTESFV;
                   break;
               }
               break;
@@ -1846,4 +1846,3 @@ void MonitorizarDatos(){
 bool AnnoBisiesto(unsigned int ano){
   return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
 }
-
