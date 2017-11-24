@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.42 ****"));
+  lcd.print(F("**** V 1.43 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -296,7 +296,12 @@ void loop() {
         }
       }
 	  
-	  //*********************   GESTIÓN  DE LOS TIPOS DE CARGA   *******************
+	  //************ CONTROL DEL CONTACTOR DURANTE LA CARGA FOTOVOLTAICA ************ V143
+	  if ((tipoCarga == EXCEDENTESFV) || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)) {
+	   if (!HayExcedentesFV && generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW); 
+	  }
+	  
+	  //*********************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado){
         if (!cargando && !cargaCompleta){
           bool puedeCargar = false;
@@ -313,12 +318,12 @@ void loop() {
               puedeCargar = true;
               break;
             case EXCEDENTESFV:
-              if (HayExcedentesFV())puedeCargar = true;
+	      if (HayExcedentesFV())puedeCargar = true;
               break;
             case INTELIGENTE:
-              if (HayExcedentesFV()){
-                tipoCargaInteligente = EXCEDENTESFV;
-                puedeCargar = true;
+	      if (HayExcedentesFV()){
+              tipoCargaInteligente = EXCEDENTESFV;
+              puedeCargar = true;
               }else if (conTarifaValle){
                 if (EnTarifaValle(horaNow)){
                   tipoCargaInteligente = TARIFAVALLE;
@@ -359,31 +364,25 @@ void loop() {
               if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
-              if (!HayExcedentesFV()){
-                permisoCarga = false;
-	        if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW); // V142
-              }
-              break;
+              if (!HayExcedentesFV()) permisoCarga = false;
+	      break;
             case INTELIGENTE:
               switch (tipoCargaInteligente){
                 case EXCEDENTESFV:
-                  if (!HayExcedentesFV()){
-                    permisoCarga = false;
-                    if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW);
-                  }
+                  if (!HayExcedentesFV()) permisoCarga = false;
                   break;
                 case TARIFAVALLE:
-                  if (!EnTarifaValle(horaNow) && !HayExcedentesFV()) {
-                    permisoCarga = false; 
-                    if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW);
-                    }
-		  if (!EnTarifaValle(horaNow)) tipoCargaInteligente = EXCEDENTESFV;
+                  if (!EnTarifaValle(horaNow) && !HayExcedentesFV()){
+                  permisoCarga = false; 
+                  digitalWrite(pinAlimentacionCargador, LOW);
+                  }
+                  if (!EnTarifaValle(horaNow)) tipoCargaInteligente = EXCEDENTESFV;
                   break;
                 case FRANJAHORARIA:
                   if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()) {
-                    permisoCarga = false; 
-                    if ( generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW);
-                    }
+                  permisoCarga = false; 
+                  digitalWrite(pinAlimentacionCargador, LOW);
+                  }
 		  if (!EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = EXCEDENTESFV;
                   break;
               }
@@ -1731,14 +1730,15 @@ bool HayExcedentesFV(){
   if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
   
   bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
-  
+  if (cargaPorExcedentes) generacionSuficiente = (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
   if (generacionSuficiente){                  // Si hay excedentes suficientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
     if ((currentMillis - tiempoGeneraSuficiente) >= (long)tiempoConGeneracion * 60000l) return true;   // Si hay excedentes durante más de x minutos activamos la carga
-  }else{    // Si NO hay excedentes suficientes ....
+    }
+  else{    // Si NO hay excedentes suficientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
-    if ((currentMillis - tiempoNoGeneraSuficiente) < (long)tiempoSinGeneracion * 60000l) return true;
-  }
+    if ((currentMillis - tiempoNoGeneraSuficiente) < (long)tiempoSinGeneracion * 60000l) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
+    }
   return false;
 }
 
