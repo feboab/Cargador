@@ -37,10 +37,10 @@ const int BOTONPROG = 3;
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, tiempoSinGeneracion = 0, tiempoConGeneracion = 0;
-bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, apagarTrasCargar = true;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+bool pausarCargaFV = 0, cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -98,6 +98,7 @@ void setup() {
   apagarLCD = EEPROM.read(21);
   cargaPorExcedentes = EEPROM.read(22);
   bloquearCargador = EEPROM.read(23);
+  apagarTrasCargar =  EEPROM.read(24);
 	
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
   lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
@@ -145,6 +146,8 @@ void setup() {
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
+    apagarTrasCargar = true;
+    EEPROM.write(24, apagarTrasCargar);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
     minutoInicioCarga = 0;
@@ -167,12 +170,12 @@ void setup() {
   }
   
   Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda (1000 hz)
-  Timer1.attachInterrupt(RetPulsos); // Activa la interrupcion y la asocia a la rutina RetPulsos
+  Timer1.attachInterrupt(GenPulsos); // Activa la interrupcion y la asocia a la rutina GenPulsos
   
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.43 ****"));
+  lcd.print(F("**** V 1.48 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -185,15 +188,15 @@ void setup() {
 }
 
  //----RUTINA DE GENERACIÓN DE LA ONDA CUADRADA----
-void RetPulsos() {                         
+void GenPulsos() {                         
   if (permisoCarga) {            // Si hay permiso de carga ......
     digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
     delayMicroseconds(duracionPulso); // durante el tiempo que marca "Duración_Pulsos" .... 
     volatileTension = analogRead(pinTensionCargador); //leemos la tensión en el pin CP
     digitalWrite(pinRegulacionCargador, LOW);     // desactivamos el pulso ....
   }else{                  // Si no hay permiso de carga ....
-    digitalWrite(pinRegulacionCargador, HIGH);     // activamos el pulso ....
-    volatileTension = analogRead(pinTensionCargador);
+    digitalWrite(pinRegulacionCargador, HIGH);     // forzamos la señal de CP a 1 ....
+    volatileTension = analogRead(pinTensionCargador); //leemos la tensión en el pin CP
   }
   actualizarDatos = true;
 }
@@ -296,14 +299,22 @@ void loop() {
         }
       }
 	  
-	  //************ CONTROL DEL CONTACTOR DURANTE LA CARGA FOTOVOLTAICA ************ V143
-	  if ((tipoCarga == EXCEDENTESFV) || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)) {
-	   if (!HayExcedentesFV && generacionFVAmperios < 2 ) digitalWrite(pinAlimentacionCargador, LOW); 
+	  //************ CONTROL DE LA CARGA FOTOVOLTAICA ************ V145
+	  if (pausarCargaFV) {
+	    permisoCarga = false;
+		digitalWrite(pinAlimentacionCargador, LOW);
+		if (generacionFVAmperios < 2)  FinalizarCarga(); // si está la carga FV pausada y la generación FV es muy baja damos la carga por finalizada
+		else if (HayExcedentesFV()) {
+	      permisoCarga = true; // V147
+		  digitalWrite(pinAlimentacionCargador, HIGH);
+	      }
 	  }
+	  if ((tipoCarga != INTELIGENTE) && (tipoCarga != EXCEDENTESFV)) pausarCargaFV = false;
 	  
-	  //*********************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
+	  //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado){
-        if (!cargando && !cargaCompleta){
+	  //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
+        if (!pausarCargaFV && !cargando && !cargaCompleta){ // V145
           bool puedeCargar = false;
           switch(tipoCarga){
             case TARIFAVALLE:
@@ -320,24 +331,24 @@ void loop() {
             case EXCEDENTESFV:
 	      if (HayExcedentesFV())puedeCargar = true;
               break;
-            case INTELIGENTE:
-	      if (HayExcedentesFV()){
-              tipoCargaInteligente = EXCEDENTESFV;
-              puedeCargar = true;
-              }else if (conTarifaValle){
-                if (EnTarifaValle(horaNow)){
-                  tipoCargaInteligente = TARIFAVALLE;
-                  puedeCargar = true;
+            case INTELIGENTE: // V146
+			if ((conTarifaValle) && (!EnTarifaValle(horaNow)) || (!conTarifaValle) && (!EnFranjaHoraria(horaNow, minutoNow))){
+	          tipoCargaInteligente = EXCEDENTESFV;
+			  if (HayExcedentesFV())puedeCargar = true;
+            }else if (conTarifaValle){
+              if (EnTarifaValle(horaNow)){
+               tipoCargaInteligente = TARIFAVALLE;
+               puedeCargar = true;
                 }
-              }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
+            }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
                 if (EnFranjaHoraria(horaNow, minutoNow)){
                   tipoCargaInteligente = FRANJAHORARIA;
                   puedeCargar = true;
                 }
               }
               break;
-          }
-          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+          }     // V148
+          if (apagarTrasCargar && puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando, no está pausada la carga FV y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
             FinalizarCarga();
             puedeCargar = false;
           }
@@ -347,7 +358,10 @@ void loop() {
             permisoCarga = true;
             digitalWrite(pinAlimentacionCargador, HIGH);
           }
-        }else if (cargando){
+		}
+		//****************  DURANTE LA CARGA  ***************  
+        else if (cargando){
+	      pausarCargaFV = false; // V147
           CalcularEnergias();
           duracionPulso = CalcularDuracionPulso();
           switch(tipoCarga){
@@ -364,13 +378,15 @@ void loop() {
               if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
-              if (!HayExcedentesFV()) permisoCarga = false;
-	      break;
+              if (!HayExcedentesFV()) pausarCargaFV = true; // V145
+              break;
             case INTELIGENTE:
               switch (tipoCargaInteligente){
                 case EXCEDENTESFV:
-                  if (!HayExcedentesFV()) permisoCarga = false;
-                  break;
+                  if (!HayExcedentesFV()) pausarCargaFV = true;
+		          if ((conTarifaValle) && (EnTarifaValle(horaNow))) tipoCargaInteligente = TARIFAVALLE;
+		          else if ((!conTarifaValle) && (EnFranjaHoraria(horaNow, minutoNow))) tipoCargaInteligente = FRANJAHORARIA;
+		          break;
                 case TARIFAVALLE:
                   if (!EnTarifaValle(horaNow) && !HayExcedentesFV()){
                   permisoCarga = false; 
@@ -383,7 +399,7 @@ void loop() {
                   permisoCarga = false; 
                   digitalWrite(pinAlimentacionCargador, LOW);
                   }
-		  if (!EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = EXCEDENTESFV;
+		          if (!EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = EXCEDENTESFV;
                   break;
               }
               break;
@@ -464,14 +480,15 @@ void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
-  bateriaCargada = false;
+  bateriaCargada = false;  // sin uso actualmente
+  pausarCargaFV = false;
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
   if (!cargaCompleta) { 
-   if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
-        else if (conTarifaValle)tipoCarga = TARIFAVALLE;
-        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
+   if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE; // tipo de carga por defecto
+        else if (conTarifaValle)tipoCarga = TARIFAVALLE; // si no tenemos FV el TC por defecto será TARIFAVALLE
+        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA; // si no tenemos TARIFAVALLE el TC por defectoo será FRANJAHORARIA
 	}			
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
@@ -705,18 +722,22 @@ void ProcesarBoton(int button){
                 enPantallaNumero = 123;
                 tempValorInt = tiempoConGeneracion;
                 break;
-              case 14:
+			  case 14:
                 enPantallaNumero = 124;
-                tempValorBool = apagarLCD;
+                tempValorBool = apagarTrasCargar;
                 break;
               case 15:
                 enPantallaNumero = 125;
+                tempValorBool = apagarLCD;
+                break;
+              case 16:
+                enPantallaNumero = 126;
                 tempValorBool = bloquearCargador;
                 break;
             }
             break;
           case BOTONMAS:
-            (opcionNumero >= 15) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 16) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
             (opcionNumero <= 0) ? opcionNumero = 15 : opcionNumero--;
@@ -1048,7 +1069,24 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	    case 124:   //Pantalla ajuste apagar LCD
+		case 124:   //Pantalla Apagar Tras Cargar
+        switch (button){
+          case BOTONINICIO:
+            apagarTrasCargar = tempValorBool;
+            EEPROM.write(24, apagarTrasCargar);
+            enPantallaNumero = 11;
+            break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool = (tempValorBool) ? false : true;
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 11;
+            break;
+        }
+        updateScreen();
+        break; 		
+	    case 125:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
@@ -1065,7 +1103,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	    case 125:   //Pantalla Bloquear Cargador
+	    case 126:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
             bloquearCargador = tempValorBool;
@@ -1081,8 +1119,8 @@ void ProcesarBoton(int button){
             break;
         }
         updateScreen();
-        break;		
-      case 130:    // Ajuste del año
+        break;
+        case 130:    // Ajuste del año
         switch (button){
           case BOTONINICIO:
             enPantallaNumero = 131;
@@ -1416,9 +1454,9 @@ void updateScreen(){
           lcd.print(F("    "));
           if (generacionFVAmperios < 10)lcd.print(F(" "));
           lcd.print(generacionFVAmperios);
-          lcd.print(F("A ("));
+          lcd.print(F(" A ("));
           lcd.print(mediaIntensidadFV); // se añade la lectura media del pin A0
-          lcd.print(F(")     "));
+          lcd.print(F(")    "));
           (HayExcedentesFV()) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
         case 7:
@@ -1528,12 +1566,17 @@ void updateScreen(){
           lcd.print(tiempoConGeneracion);
           lcd.print(F(" min"));
           break;
-        case 14:
+		case 14:
+          lcd.print(F("APAGAR CARGADO: "));
+          lcd.setCursor(7, 1);
+          (apagarTrasCargar) ? lcd.print(F("SI")) : lcd.print(F("NO"));
+          break;   
+        case 15:
           lcd.print(F("APAGAR LCD:     "));
           lcd.setCursor(7, 1);
           (apagarLCD) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
-        case 15:
+        case 16:
           lcd.print(F("BLOQ. CARGADOR: "));
           lcd.setCursor(7, 1);
           (bloquearCargador) ? lcd.print(F("SI")) : lcd.print(F("NO"));
@@ -1583,6 +1626,7 @@ void updateScreen(){
     case 120:
     case 124:
     case 125:
+	case 126:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
@@ -1660,6 +1704,7 @@ void updateScreen(){
 }
 
 void MostrarPantallaCarga(){
+  if (tipoCarga == INTELIGENTE) MostrarTipoCarga(); // V146	
   lcd.setCursor(0, 1);
   lcd.print(F("CARGA:"));
   if (consumoCargadorAmperios < 10)lcd.print(F(" "));
@@ -1704,7 +1749,10 @@ void MostrarTipoCarga(){
       lcd.print(F("TC: EXCEDENT. FV"));
       break;
     case INTELIGENTE:
-      lcd.print(F("TC:  INTELIGENTE"));
+      lcd.print(F("TC: INTELIG. "));
+      if (tipoCargaInteligente == EXCEDENTESFV) lcd.print(F("EFV"));
+	  if (tipoCargaInteligente == TARIFAVALLE) lcd.print(F("TDH"));
+	  if (tipoCargaInteligente == FRANJAHORARIA) lcd.print(F("FHO"));
       break;
   }
 }
@@ -1801,9 +1849,9 @@ int ObtenerConsumoRestante(){
                       // para tenerlo en cuenta al calcular la intensidad disponible.
                       // Esto es debido a que la normativa permite sacar la alimentación del cargador directamente del contador
                       // Se hace en edificios para no tener que tirar la línea desde el CGP de la vivienda hasta el garage          
-      return (generacionFVAmperios + consumoTotalMax) - consumoGeneralAmperios; // Si el trafo que mide consumo general incluye el cargador //no se resta el consumo del cargador
+      return (generacionFVAmperios + consumoTotalMax) - (consumoGeneralAmperios - consumoCargadorAmperios); // Si el trafo que mide consumo general incluye el cargador se resta el consumo del cargador
     }else{
-      return (generacionFVAmperios + consumoTotalMax) - (consumoGeneralAmperios - consumoCargadorAmperios); // Si el trafo que mide consumo general no incluye el cargador se resta el consumo del cargador
+      return (generacionFVAmperios + consumoTotalMax) - consumoGeneralAmperios; // Si el trafo que mide consumo general no incluye el cargador no se resta el consumo del cargador
     }
   }
 }
