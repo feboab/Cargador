@@ -40,7 +40,7 @@ byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consu
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, apagarTrasCargar = true;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool pausarCargaFV = 0, cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -109,11 +109,11 @@ void setup() {
   Serial.begin(9600); // Iniciamos el puerto serie
 
   if (!rtc.begin()) { // Comprobamos la comunicación con el reloj RTC
-  lcd.setCursor(0, 0);
-  lcd.print(F("  SIN CONEXION  "));
-  lcd.setCursor(0, 1);
-  lcd.print(F("CON EL RELOJ RTC"));
-  delay(4000);
+    lcd.setCursor(0, 0);
+    lcd.print(F("  SIN CONEXION  "));
+    lcd.setCursor(0, 1);
+    lcd.print(F("CON EL RELOJ RTC"));
+    delay(4000);
     while (1);
   }
   
@@ -175,13 +175,13 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.48 ****"));
+  lcd.print(F("**** V 1.49 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
-	if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
-	else if (conTarifaValle)tipoCarga = TARIFAVALLE;
-	else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
+  	if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+  	else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+  	else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   }
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -244,19 +244,17 @@ void loop() {
       conectado = (tensionCargador < 660 && tensionCargador > 500);
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
 	  
-	  
-    //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA  (sin uso actualmente) *******************
-	  if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
-	  if (cargaAntesEcu && consumoCargadorAmperios < 4) {
-		  cargaEcu = true;
-		  cargaAntesEcu = false;
-		  }
-	  if (cargaEcu && conectado && !cargando) {
-		  bateriaCargada = true;
-		  cargaEcu = false;
-		  }
-	  
-	  
+      //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA  (sin uso actualmente) *******************
+  	  if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
+  	  if (cargaAntesEcu && consumoCargadorAmperios < 4) {
+  		  cargaEcu = true;
+  		  cargaAntesEcu = false;
+      }
+  	  if (cargaEcu && conectado && !cargando) {
+  		  bateriaCargada = true;
+  		  cargaEcu = false;
+      }
+  	  
       //*********************   CONTROL DE CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
       if (conectado && !antesConectado){
         if (!inicioCargaActivado && (tipoCarga == INTELIGENTE || tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE)) IniciarCarga();
@@ -267,7 +265,7 @@ void loop() {
           tiempoUltimaPulsacionBoton = actualMillis;
         }
       }else if (!conectado && antesConectado){
-		if (inicioCargaActivado) FinalizarCarga();
+  	    if (inicioCargaActivado) FinalizarCarga();
         if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
         else if (conTarifaValle)tipoCarga = TARIFAVALLE;
         else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
@@ -278,8 +276,8 @@ void loop() {
           tiempoUltimaPulsacionBoton = actualMillis;
         }
       }
-	  
-	  //*********************   CONTROL DEL HORARIO VERANO / INVIERNO   *******************
+  	  
+  	  //*********************   CONTROL DEL HORARIO VERANO / INVIERNO   *******************
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -299,22 +297,10 @@ void loop() {
         }
       }
 	  
-	  //************ CONTROL DE LA CARGA FOTOVOLTAICA ************ V145
-	  if (pausarCargaFV) {
-	    permisoCarga = false;
-		digitalWrite(pinAlimentacionCargador, LOW);
-		if (generacionFVAmperios < 2)  FinalizarCarga(); // si está la carga FV pausada y la generación FV es muy baja damos la carga por finalizada
-		else if (HayExcedentesFV()) {
-	      permisoCarga = true; // V147
-		  digitalWrite(pinAlimentacionCargador, HIGH);
-	      }
-	  }
-	  if ((tipoCarga != INTELIGENTE) && (tipoCarga != EXCEDENTESFV)) pausarCargaFV = false;
-	  
-	  //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
+      //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado){
-	  //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
-        if (!pausarCargaFV && !cargando && !cargaCompleta){ // V145
+      //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
+        if (!cargando && !cargaCompleta){
           bool puedeCargar = false;
           switch(tipoCarga){
             case TARIFAVALLE:
@@ -329,26 +315,33 @@ void loop() {
               puedeCargar = true;
               break;
             case EXCEDENTESFV:
-	      if (HayExcedentesFV())puedeCargar = true;
+	            if (HayExcedentesFV())puedeCargar = true;
               break;
-            case INTELIGENTE: // V146
-			if ((conTarifaValle) && (!EnTarifaValle(horaNow)) || (!conTarifaValle) && (!EnFranjaHoraria(horaNow, minutoNow))){
-	          tipoCargaInteligente = EXCEDENTESFV;
-			  if (HayExcedentesFV())puedeCargar = true;
-            }else if (conTarifaValle){
-              if (EnTarifaValle(horaNow)){
-               tipoCargaInteligente = TARIFAVALLE;
-               puedeCargar = true;
+            case INTELIGENTE:
+              if (conTarifaValle){
+                if (EnTarifaValle(horaNow)){
+                  tipoCargaInteligente = TARIFAVALLE;
+                  puedeCargar = true;
+                }else{
+                  if (HayExcedentesFV()){
+                    tipoCargaInteligente = EXCEDENTESFV;
+                    puedeCargar = true;
+                  }else tipoCargaInteligente = TARIFAVALLE;
                 }
-            }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
+              }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
                 if (EnFranjaHoraria(horaNow, minutoNow)){
                   tipoCargaInteligente = FRANJAHORARIA;
                   puedeCargar = true;
+                }else{
+                  if (HayExcedentesFV()){
+                    tipoCargaInteligente = EXCEDENTESFV;
+                    puedeCargar = true;
+                  }else tipoCargaInteligente = FRANJAHORARIA;
                 }
               }
               break;
-          }     // V148
-          if (apagarTrasCargar && puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando, no está pausada la carga FV y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+          }
+          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
             FinalizarCarga();
             puedeCargar = false;
           }
@@ -358,12 +351,10 @@ void loop() {
             permisoCarga = true;
             digitalWrite(pinAlimentacionCargador, HIGH);
           }
-		}
-		//****************  DURANTE LA CARGA  ***************  
+        }
+        //****************  DURANTE LA CARGA  ***************  
         else if (cargando){
-	      pausarCargaFV = false; // V147
           CalcularEnergias();
-          duracionPulso = CalcularDuracionPulso();
           switch(tipoCarga){
             case TARIFAVALLE:
               if (!EnTarifaValle(horaNow)) FinalizarCarga();
@@ -378,32 +369,53 @@ void loop() {
               if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
-              if (!HayExcedentesFV()) pausarCargaFV = true; // V145
+              if (!HayExcedentesFV()){
+                if (generacionFVAmperios < 2){
+                  FinalizarCarga();
+                }else{
+                  permisoCarga = false;
+                  digitalWrite(pinAlimentacionCargador, LOW);
+                }
+              }
               break;
             case INTELIGENTE:
               switch (tipoCargaInteligente){
                 case EXCEDENTESFV:
-                  if (!HayExcedentesFV()) pausarCargaFV = true;
-		          if ((conTarifaValle) && (EnTarifaValle(horaNow))) tipoCargaInteligente = TARIFAVALLE;
-		          else if ((!conTarifaValle) && (EnFranjaHoraria(horaNow, minutoNow))) tipoCargaInteligente = FRANJAHORARIA;
-		          break;
-                case TARIFAVALLE:
-                  if (!EnTarifaValle(horaNow) && !HayExcedentesFV()){
-                  permisoCarga = false; 
-                  digitalWrite(pinAlimentacionCargador, LOW);
+                  if (conTarifaValle){
+                    if (EnTarifaValle(horaNow)) tipoCargaInteligente = TARIFAVALLE;
+                  }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
+                    if (EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = FRANJAHORARIA;
                   }
-                  if (!EnTarifaValle(horaNow)) tipoCargaInteligente = EXCEDENTESFV;
+                  if (tipoCargaInteligente == EXCEDENTESFV && !HayExcedentesFV()){
+                    permisoCarga = false;
+                    digitalWrite(pinAlimentacionCargador, LOW);
+                  }
+                case TARIFAVALLE:
+                  if (!EnTarifaValle(horaNow)){
+                    if (HayExcedentesFV())tipoCargaInteligente = EXCEDENTESFV;
+                    else{
+                      permisoCarga = false;
+                      digitalWrite(pinAlimentacionCargador, LOW);
+                    }
+                  }
                   break;
                 case FRANJAHORARIA:
                   if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()) {
-                  permisoCarga = false; 
-                  digitalWrite(pinAlimentacionCargador, LOW);
+                    permisoCarga = false; 
+                    digitalWrite(pinAlimentacionCargador, LOW);
                   }
-		          if (!EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = EXCEDENTESFV;
+                  if (!EnFranjaHoraria(horaNow, minutoNow)){
+                    if (HayExcedentesFV())tipoCargaInteligente = EXCEDENTESFV;
+                    else{
+                      permisoCarga = false;
+                      digitalWrite(pinAlimentacionCargador, LOW);
+                    }
+                  }
                   break;
               }
               break;
           }
+          if (permisoCarga) duracionPulso = CalcularDuracionPulso();
         }
       }
     }
@@ -477,19 +489,18 @@ void IniciarCarga(){
 }
 
 void FinalizarCarga(){
-  digitalWrite(pinAlimentacionCargador, LOW);
+  if (apagarTrasCargar || !conectado) digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
   bateriaCargada = false;  // sin uso actualmente
-  pausarCargaFV = false;
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
   if (!cargaCompleta) { 
-   if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE; // tipo de carga por defecto
-        else if (conTarifaValle)tipoCarga = TARIFAVALLE; // si no tenemos FV el TC por defecto será TARIFAVALLE
-        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA; // si no tenemos TARIFAVALLE el TC por defectoo será FRANJAHORARIA
-	}			
+    if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE; // tipo de carga por defecto
+    else if (conTarifaValle)tipoCarga = TARIFAVALLE; // si no tenemos FV el TC por defecto será TARIFAVALLE
+    else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA; // si no tenemos TARIFAVALLE el TC por defectoo será FRANJAHORARIA
+  }			
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -722,7 +733,7 @@ void ProcesarBoton(int button){
                 enPantallaNumero = 123;
                 tempValorInt = tiempoConGeneracion;
                 break;
-			  case 14:
+              case 14:
                 enPantallaNumero = 124;
                 tempValorBool = apagarTrasCargar;
                 break;
@@ -975,9 +986,9 @@ void ProcesarBoton(int button){
           case BOTONPROG:
             enPantallaNumero = 11;
             break;
-		}
+        }
         updateScreen();
-		break;
+        break;
       case 119:   //Pantalla ajuste Carga por Excedentes
         switch (button){
           case BOTONINICIO:
@@ -1069,7 +1080,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-		case 124:   //Pantalla Apagar Tras Cargar
+      case 124:   //Pantalla Apagar Tras Cargar
         switch (button){
           case BOTONINICIO:
             apagarTrasCargar = tempValorBool;
@@ -1120,7 +1131,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-        case 130:    // Ajuste del año
+      case 130:    // Ajuste del año
         switch (button){
           case BOTONINICIO:
             enPantallaNumero = 131;
@@ -1566,7 +1577,7 @@ void updateScreen(){
           lcd.print(tiempoConGeneracion);
           lcd.print(F(" min"));
           break;
-		case 14:
+		    case 14:
           lcd.print(F("APAGAR CARGADO: "));
           lcd.setCursor(7, 1);
           (apagarTrasCargar) ? lcd.print(F("SI")) : lcd.print(F("NO"));
@@ -1626,7 +1637,7 @@ void updateScreen(){
     case 120:
     case 124:
     case 125:
-	case 126:
+    case 126:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
@@ -1751,8 +1762,8 @@ void MostrarTipoCarga(){
     case INTELIGENTE:
       lcd.print(F("TC: INTELIG. "));
       if (tipoCargaInteligente == EXCEDENTESFV) lcd.print(F("EFV"));
-	  if (tipoCargaInteligente == TARIFAVALLE) lcd.print(F("TDH"));
-	  if (tipoCargaInteligente == FRANJAHORARIA) lcd.print(F("FHO"));
+  	  if (tipoCargaInteligente == TARIFAVALLE) lcd.print(F("TDH"));
+  	  if (tipoCargaInteligente == FRANJAHORARIA) lcd.print(F("FHO"));
       break;
   }
 }
@@ -1782,11 +1793,10 @@ bool HayExcedentesFV(){
   if (generacionSuficiente){                  // Si hay excedentes suficientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
     if ((currentMillis - tiempoGeneraSuficiente) >= (long)tiempoConGeneracion * 60000l) return true;   // Si hay excedentes durante más de x minutos activamos la carga
-    }
-  else{    // Si NO hay excedentes suficientes ....
+  } else{    // Si NO hay excedentes suficientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
     if ((currentMillis - tiempoNoGeneraSuficiente) < (long)tiempoSinGeneracion * 60000l) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
-    }
+  }
   return false;
 }
 
