@@ -179,9 +179,9 @@ void setup() {
   delay(1500);
   
   if (!inicioCargaActivado){
-  	if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
-  	else if (conTarifaValle)tipoCarga = TARIFAVALLE;
-  	else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
+    if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+    else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+    else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   }
   digitalWrite(pinRegulacionCargador, HIGH);
   tiempoUltimaPulsacionBoton = millis();
@@ -245,14 +245,14 @@ void loop() {
       cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
 	  
       //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA  (sin uso actualmente) *******************
-  	  if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
-  	  if (cargaAntesEcu && consumoCargadorAmperios < 4) {
-  		  cargaEcu = true;
-  		  cargaAntesEcu = false;
+      if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
+      if (cargaAntesEcu && consumoCargadorAmperios < 4) {
+        cargaEcu = true;
+        cargaAntesEcu = false;
       }
-  	  if (cargaEcu && conectado && !cargando) {
-  		  bateriaCargada = true;
-  		  cargaEcu = false;
+      if (cargaEcu && conectado && !cargando) {
+        bateriaCargada = true;
+        cargaEcu = false;
       }
   	  
       //*********************   CONTROL DE CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
@@ -315,7 +315,7 @@ void loop() {
               puedeCargar = true;
               break;
             case EXCEDENTESFV:
-	            if (HayExcedentesFV())puedeCargar = true;
+              if (HayExcedentesFV())puedeCargar = true;
               break;
             case INTELIGENTE:
               if (conTarifaValle){
