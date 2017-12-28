@@ -175,7 +175,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F(" *** V 1.49A ***"));
+  lcd.print(F("**** V 1.49B****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -341,7 +341,7 @@ void loop() {
               }
               break;
           }
-          if (apagarTrasCargar && puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
             FinalizarCarga();
             puedeCargar = false;
           }
@@ -489,7 +489,7 @@ void IniciarCarga(){
 }
 
 void FinalizarCarga(){
-  if (!conectado) digitalWrite(pinAlimentacionCargador, LOW);
+  digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
   bateriaCargada = false;  // sin uso actualmente
