@@ -175,7 +175,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.49B****"));
+  lcd.print(F("**** V 1.50 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -195,7 +195,7 @@ void GenPulsos() {
     volatileTension = analogRead(pinTensionCargador); //leemos la tensión en el pin CP
     digitalWrite(pinRegulacionCargador, LOW);     // desactivamos el pulso ....
   }else{                  // Si no hay permiso de carga ....
-    digitalWrite(pinRegulacionCargador, HIGH);     // forzamos la señal de CP a 1 ....
+    if (apagarTrasCargar || !bateriaCargada) digitalWrite(pinRegulacionCargador, HIGH);     // forzamos la señal de CP a 1 ....
     volatileTension = analogRead(pinTensionCargador); //leemos la tensión en el pin CP
   }
   actualizarDatos = true;
@@ -242,10 +242,10 @@ void loop() {
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0;
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
-      cargando = (tensionCargador < 600 && tensionCargador > 500 && permisoCarga);
+      cargando = (tensionCargador < 600 && tensionCargador > 500);
 	  
       //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA  (sin uso actualmente) *******************
-      if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
+      /*if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
       if (cargaAntesEcu && consumoCargadorAmperios < 4) {
         cargaEcu = true;
         cargaAntesEcu = false;
@@ -253,7 +253,7 @@ void loop() {
       if (cargaEcu && conectado && !cargando) {
         bateriaCargada = true;
         cargaEcu = false;
-      }
+      }*/
   	  
       //*********************   CONTROL DE CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
       if (conectado && !antesConectado){
@@ -265,10 +265,8 @@ void loop() {
           tiempoUltimaPulsacionBoton = actualMillis;
         }
       }else if (!conectado && antesConectado){
-  	    if (inicioCargaActivado) FinalizarCarga();
-        if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
-        else if (conTarifaValle)tipoCarga = TARIFAVALLE;
-        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
+        bateriaCargada = false;
+        if (inicioCargaActivado) FinalizarCarga();
         antesConectado = false;
         if (!luzLcd){
           lcd.setBacklight(HIGH);
@@ -295,6 +293,16 @@ void loop() {
           rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
           EEPROM.write(14, horarioVerano);
         }
+      }
+
+      if (cargando && !inicioCargaActivado && bateriaCargada){
+        tipoCarga = INMEDIATA;
+        inicioCargaActivado = true;
+        cargaCompleta = false;
+        bateriaCargada = false;
+        tempWatiosCargados = watiosCargados;
+        duracionPulso = CalcularDuracionPulso();
+        permisoCarga = true;
       }
 	  
       //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
@@ -342,6 +350,7 @@ void loop() {
               break;
           }
           if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+            bateriaCargada = true;
             FinalizarCarga();
             puedeCargar = false;
           }
@@ -489,18 +498,17 @@ void IniciarCarga(){
 }
 
 void FinalizarCarga(){
-  digitalWrite(pinAlimentacionCargador, LOW);
+  if (apagarTrasCargar || !bateriaCargada) digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
-  bateriaCargada = false;  // sin uso actualmente
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
-  if (!cargaCompleta) { 
+  if (!bateriaCargada) {
     if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE; // tipo de carga por defecto
     else if (conTarifaValle)tipoCarga = TARIFAVALLE; // si no tenemos FV el TC por defecto será TARIFAVALLE
     else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA; // si no tenemos TARIFAVALLE el TC por defectoo será FRANJAHORARIA
-  }			
+  }
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -1298,20 +1306,11 @@ void updateScreen(){
                  lcd.print(F("GEN. FV INSUFIC."));
                 break;
               case INTELIGENTE:
-                if (generacionFVAmperios >= 1) {
-                  lcd.setCursor(0, 1);
-                  lcd.print(F("GEN. FV INSUFIC."));
-                }else if (conTarifaValle){
-                  lcd.setCursor(0, 1);
-                  lcd.print(F("INI.CARG:"));
-                  tempValorInt = (horarioVerano) ? 1380 : 1320;
-                  MostrarTiempoRestante(tempValorInt);
-                }else{
-                  lcd.setCursor(0, 1);
-                  lcd.print(F("INI.CARG:"));
-                  tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
-                  MostrarTiempoRestante(tempValorInt);
-                }
+                lcd.setCursor(0, 1);
+                lcd.print(F("INI.CARG:"));
+                if (conTarifaValle)tempValorInt = (horarioVerano) ? 1380 : 1320;
+                else tempValorInt = (horaInicioCarga * 60) + minutoInicioCarga;
+                MostrarTiempoRestante(tempValorInt);
                 break;
               case FRANJAHORARIA:
                 lcd.setCursor(0, 1);
