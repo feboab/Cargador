@@ -267,6 +267,9 @@ void loop() {
       }else if (!conectado && antesConectado){
         bateriaCargada = false;
         if (inicioCargaActivado) FinalizarCarga();
+        if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+        else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+        else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
         antesConectado = false;
         if (!luzLcd){
           lcd.setBacklight(HIGH);
@@ -504,11 +507,6 @@ void FinalizarCarga(){
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
-  if (!bateriaCargada) {
-    if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE; // tipo de carga por defecto
-    else if (conTarifaValle)tipoCarga = TARIFAVALLE; // si no tenemos FV el TC por defecto será TARIFAVALLE
-    else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA; // si no tenemos TARIFAVALLE el TC por defectoo será FRANJAHORARIA
-  }
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
