@@ -758,7 +758,7 @@ void ProcesarBoton(int button){
             (opcionNumero >= 15) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero <= 0) ? opcionNumero = 14 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 15 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 1;
