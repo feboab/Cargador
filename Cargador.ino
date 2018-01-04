@@ -37,13 +37,13 @@ const int BOTONPROG = 3;
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, tiempoSinGeneracion = 0, tiempoConGeneracion = 0;
-bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, apagarTrasCargar = true;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
+bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
-unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
+unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0, tiempoErrorCarga = 0;
 byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
 DateTime timeNow;
@@ -98,7 +98,6 @@ void setup() {
   apagarLCD = EEPROM.read(21);
   cargaPorExcedentes = EEPROM.read(22);
   bloquearCargador = EEPROM.read(23);
-  apagarTrasCargar =  EEPROM.read(24);
 	
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
   lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
@@ -146,8 +145,6 @@ void setup() {
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
-    apagarTrasCargar = true;
-    EEPROM.write(24, apagarTrasCargar);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
     minutoInicioCarga = 0;
@@ -175,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.50 ****"));
+  lcd.print(F("**** V 1.51 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -189,13 +186,13 @@ void setup() {
 
  //----RUTINA DE GENERACIÓN DE LA ONDA CUADRADA----
 void GenPulsos() {                         
-  if (permisoCarga) {            // Si hay permiso de carga ......
+  if (permisoCarga || bateriaCargada) {            // Si hay permiso de carga ......
     digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
     delayMicroseconds(duracionPulso); // durante el tiempo que marca "Duración_Pulsos" .... 
     volatileTension = analogRead(pinTensionCargador); //leemos la tensión en el pin CP
     digitalWrite(pinRegulacionCargador, LOW);     // desactivamos el pulso ....
   }else{                  // Si no hay permiso de carga ....
-    if (apagarTrasCargar || !bateriaCargada) digitalWrite(pinRegulacionCargador, HIGH);     // forzamos la señal de CP a 1 ....
+    digitalWrite(pinRegulacionCargador, HIGH);     // forzamos la señal de CP a 1 ....
     volatileTension = analogRead(pinTensionCargador); //leemos la tensión en el pin CP
   }
   actualizarDatos = true;
@@ -242,7 +239,19 @@ void loop() {
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0;
       
       conectado = (tensionCargador < 660 && tensionCargador > 500);
-      cargando = (tensionCargador < 600 && tensionCargador > 500);
+      peticionCarga = (tensionCargador < 600 && tensionCargador > 500);
+      cargando = peticionCarga && permisoCarga;
+
+      if (tensionCargador < 500){
+        if (!errorCarga && permisoCarga){
+          errorCarga = true;
+          permisoCarga = false;
+          digitalWrite(pinAlimentacionCargador, LOW);
+        }
+        tiempoErrorCarga = actualMillis;
+      }else if (errorCarga && actualMillis - tiempoErrorCarga > 5000){
+        errorCarga = false;
+      }
 	  
       //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA  (sin uso actualmente) *******************
       /*if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
@@ -298,20 +307,15 @@ void loop() {
         }
       }
 
-      if (cargando && !inicioCargaActivado && bateriaCargada){
-        tipoCarga = INMEDIATA;
+      if (!cargando && peticionCarga){
         inicioCargaActivado = true;
-        cargaCompleta = false;
         bateriaCargada = false;
-        tempWatiosCargados = watiosCargados;
-        duracionPulso = CalcularDuracionPulso();
-        permisoCarga = true;
       }
 	  
       //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
-      if (conectado && inicioCargaActivado){
+      if (conectado && inicioCargaActivado && !errorCarga){
       //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
-        if (!cargando && !cargaCompleta){
+        if (!cargando && (!cargaCompleta || peticionCarga)){
           bool puedeCargar = false;
           switch(tipoCarga){
             case TARIFAVALLE:
@@ -358,6 +362,7 @@ void loop() {
             puedeCargar = false;
           }
           if (puedeCargar){
+            cargaCompleta = false;
             tempWatiosCargados = watiosCargados;
             duracionPulso = CalcularDuracionPulso();
             permisoCarga = true;
@@ -501,7 +506,7 @@ void IniciarCarga(){
 }
 
 void FinalizarCarga(){
-  if (apagarTrasCargar || !bateriaCargada) digitalWrite(pinAlimentacionCargador, LOW);
+  digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
   if (watiosCargados > 0) cargaCompleta = true;
   permisoCarga = false;
@@ -741,23 +746,19 @@ void ProcesarBoton(int button){
                 break;
               case 14:
                 enPantallaNumero = 124;
-                tempValorBool = apagarTrasCargar;
+                tempValorBool = apagarLCD;
                 break;
               case 15:
                 enPantallaNumero = 125;
-                tempValorBool = apagarLCD;
-                break;
-              case 16:
-                enPantallaNumero = 126;
                 tempValorBool = bloquearCargador;
                 break;
             }
             break;
           case BOTONMAS:
-            (opcionNumero >= 16) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 15) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero <= 0) ? opcionNumero = 15 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 14 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -1085,25 +1086,8 @@ void ProcesarBoton(int button){
             break;
         }
         updateScreen();
-        break;
-      case 124:   //Pantalla Apagar Tras Cargar
-        switch (button){
-          case BOTONINICIO:
-            apagarTrasCargar = tempValorBool;
-            EEPROM.write(24, apagarTrasCargar);
-            enPantallaNumero = 11;
-            break;
-          case BOTONMAS:
-          case BOTONMENOS:
-            tempValorBool = (tempValorBool) ? false : true;
-            break;
-          case BOTONPROG:
-            enPantallaNumero = 11;
-            break;
-        }
-        updateScreen();
         break; 		
-	    case 125:   //Pantalla ajuste apagar LCD
+	    case 124:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
@@ -1120,7 +1104,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	    case 126:   //Pantalla Bloquear Cargador
+	    case 125:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
             bloquearCargador = tempValorBool;
@@ -1294,7 +1278,12 @@ void updateScreen(){
         lcd.print(F("     "));
       }else{
         MostrarTipoCarga();
-        if (inicioCargaActivado){
+        if (cargaCompleta){
+          lcd.setCursor(0, 1);
+          lcd.print(F("CARGADO "));
+          lcd.print(watiosCargados / 100);
+          lcd.print(F(" Wh    "));
+        }else if (inicioCargaActivado){
           if (cargando){
             MostrarPantallaCarga();
           }else if (conectado){
@@ -1328,15 +1317,13 @@ void updateScreen(){
                 MostrarPantallaCarga();
                 break;
             }
+          }else if (errorCarga){
+            lcd.setCursor(0, 1);
+            lcd.print(F("ERROR DE CARGA. "));
           }else{
             lcd.setCursor(0, 1);
             lcd.print(F("COCHE NO CONECT."));
           }
-        }else if (cargaCompleta){
-          lcd.setCursor(0, 1);
-          lcd.print(F("CARGADO "));
-          lcd.print(watiosCargados / 100);
-          lcd.print(F(" Wh    "));
         }else if (conectado){
           lcd.setCursor(0, 1);
           lcd.print(F("COCHE CONECTADO "));
@@ -1574,17 +1561,12 @@ void updateScreen(){
           lcd.print(tiempoConGeneracion);
           lcd.print(F(" min"));
           break;
-		    case 14:
-          lcd.print(F("APAGAR CARGADO: "));
-          lcd.setCursor(7, 1);
-          (apagarTrasCargar) ? lcd.print(F("SI")) : lcd.print(F("NO"));
-          break;   
-        case 15:
+        case 14:
           lcd.print(F("APAGAR LCD:     "));
           lcd.setCursor(7, 1);
           (apagarLCD) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
-        case 16:
+        case 15:
           lcd.print(F("BLOQ. CARGADOR: "));
           lcd.setCursor(7, 1);
           (bloquearCargador) ? lcd.print(F("SI")) : lcd.print(F("NO"));
@@ -1634,7 +1616,6 @@ void updateScreen(){
     case 120:
     case 124:
     case 125:
-    case 126:
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print(F("AJUSTE:"));
