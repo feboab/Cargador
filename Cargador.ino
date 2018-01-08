@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.51 ****"));
+  lcd.print(F("**** V 1.52 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -237,12 +237,9 @@ void loop() {
       }
       
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0;
-      
-      conectado = (tensionCargador < 660 && tensionCargador > 500);
-      peticionCarga = (tensionCargador < 600 && tensionCargador > 500);
-      cargando = peticionCarga && permisoCarga;
 
-      if (tensionCargador < 500){
+		//********************** CONTROL DE LA INFORMACIÓN DEL VEHÍCULO **********************
+	 if (tensionCargador < 550){
         if (!errorCarga && permisoCarga){
           errorCarga = true;
           permisoCarga = false;
@@ -252,19 +249,11 @@ void loop() {
       }else if (errorCarga && actualMillis - tiempoErrorCarga > 5000){
         errorCarga = false;
       }
-	  
-      //*********************   CONTROL DE LA CARGA COMPLETA DE LA BATERÍA  (sin uso actualmente) *******************
-      /*if (consumoCargadorAmperios > 4) cargaAntesEcu = true;
-      if (cargaAntesEcu && consumoCargadorAmperios < 4) {
-        cargaEcu = true;
-        cargaAntesEcu = false;
-      }
-      if (cargaEcu && conectado && !cargando) {
-        bateriaCargada = true;
-        cargaEcu = false;
-      }*/
-  	  
-      //*********************   CONTROL DE CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
+      conectado = (tensionCargador < 660);
+      peticionCarga = (tensionCargador < 600 && !errorCarga);
+      cargando = peticionCarga && permisoCarga; // ¿? Si no hay permisoCarga no va a haber peticionCarga
+      
+      //*********************   CONTROL DE LA CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
       if (conectado && !antesConectado){
         if (!inicioCargaActivado && (tipoCarga == INTELIGENTE || tipoCarga == FRANJAHORARIA || tipoCarga == TARIFAVALLE)) IniciarCarga();
         antesConectado = true;
@@ -287,7 +276,7 @@ void loop() {
         }
       }
   	  
-  	  //*********************   CONTROL DEL HORARIO VERANO / INVIERNO   *******************
+  	  //*********************   CONTROL DEL HORARIO VERANO/INVIERNO   *******************
       timeNow = rtc.now();
       int horaNow = timeNow.hour();
       int minutoNow = timeNow.minute();
@@ -438,7 +427,7 @@ void loop() {
     }
     actualizarDatos = false;
   }
-  
+	// ********************* CONTROL DE LAS PULSACIONES EN EL TECLADO ************************
   if (digitalRead(pinPulsadorInicio) == HIGH) {
     if (!flancoBotonInicio && (actualMillis - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONINICIO);
@@ -495,7 +484,7 @@ void loop() {
     ticksScreen = 0;
   }
 }
-
+// ******************* RUTINA DE INICIO DE CARGA ******************
 void IniciarCarga(){
   watiosCargados = 0;
   cargaCompleta = false;
@@ -504,7 +493,7 @@ void IniciarCarga(){
   EEPROM.write(11, tipoCarga);
   EEPROM.write(13, inicioCargaActivado);
 }
-
+// ******************* RUTINA DE FINALIZACIÓN DE CARGA ******************
 void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
   cargaCompleta = false;
@@ -515,7 +504,7 @@ void FinalizarCarga(){
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
-
+// ******************* RUTINA DE PROCESAMIENTO DE LOS MENÚS ******************
 void ProcesarBoton(int button){
   unsigned long tempMillis = millis();
   if (luzLcd && !pantallaBloqueada){
