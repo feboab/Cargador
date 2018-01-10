@@ -36,21 +36,21 @@ const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
-byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, tiempoSinGeneracion = 0, tiempoConGeneracion = 0;
-bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false;
-unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
+byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
+byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false;
+bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
+bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, flancoBotonProg = false;
+bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false, luzLcd = true, horarioVerano = true;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
+unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0, tiempoErrorCarga = 0;
-byte lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
-bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, actualizarDatos = false;
+
 DateTime timeNow;
 const float factor = 0.244;
-
 byte enheM[8] = { B01110, B00000, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
-
 const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
 // VARIABLES PARA EL RELOJ RTC ---------------
@@ -172,7 +172,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.52 ****"));
+  lcd.print(F("**** V 1.53 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
@@ -237,9 +237,29 @@ void loop() {
       }
       
       numCiclos = 0; acumTensionCargador = 0; acumIntensidadFV = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0;
+      
+      //*********************   CONTROL DEL HORARIO VERANO/INVIERNO   *******************
+      timeNow = rtc.now();
+      int horaNow = timeNow.hour();
+      int minutoNow = timeNow.minute();
+      if (horaNow > lastCheckHour || (horaNow == 0 && lastCheckHour == 23)){
+        lastCheckHour = horaNow;
+        bool tempHorarioVerano = EsHorarioVerano(timeNow);
+        if (horarioVerano && !tempHorarioVerano && horaNow >= 3){
+          horaNow--;
+          horarioVerano = false;
+          rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+          EEPROM.write(14, horarioVerano);
+        }else if (!horarioVerano && tempHorarioVerano && horaNow >= 2){
+          horaNow++;
+          horarioVerano = true;
+          rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
+          EEPROM.write(14, horarioVerano);
+        }
+      }
 
-		//********************** CONTROL DE LA INFORMACIÓN DEL VEHÍCULO **********************
-	 if (tensionCargador < 550){
+      //********************** CONTROL DE LA INFORMACIÓN DEL VEHÍCULO **********************
+      if (tensionCargador < 550){
         if (!errorCarga && permisoCarga){
           errorCarga = true;
           permisoCarga = false;
@@ -251,7 +271,13 @@ void loop() {
       }
       conectado = (tensionCargador < 660);
       peticionCarga = (tensionCargador < 600 && !errorCarga);
-      cargando = peticionCarga && permisoCarga; // ¿? Si no hay permisoCarga no va a haber peticionCarga
+      if (peticionCarga && !cargando && permisoCarga) digitalWrite(pinAlimentacionCargador, HIGH);
+      cargando = peticionCarga && permisoCarga;
+      
+      if (bateriaCargada && peticionCarga && !inicioCargaActivado){
+        inicioCargaActivado = true;
+        bateriaCargada = false;
+      }
       
       //*********************   CONTROL DE LA CONEXIÓN DEL CONECTOR EN EL COCHE   *******************
       if (conectado && !antesConectado){
@@ -275,32 +301,7 @@ void loop() {
           tiempoUltimaPulsacionBoton = actualMillis;
         }
       }
-  	  
-  	  //*********************   CONTROL DEL HORARIO VERANO/INVIERNO   *******************
-      timeNow = rtc.now();
-      int horaNow = timeNow.hour();
-      int minutoNow = timeNow.minute();
-      if (horaNow > lastCheckHour || (horaNow == 0 && lastCheckHour == 23)){
-        lastCheckHour = horaNow;
-        bool tempHorarioVerano = EsHorarioVerano(timeNow);
-        if (horarioVerano && !tempHorarioVerano && horaNow >= 3){
-          horaNow--;
-          horarioVerano = false;
-          rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
-          EEPROM.write(14, horarioVerano);
-        }else if (!horarioVerano && tempHorarioVerano && horaNow >= 2){
-          horaNow++;
-          horarioVerano = true;
-          rtc.adjust(DateTime(timeNow.year(), timeNow.month(), timeNow.day(), horaNow, minutoNow, timeNow.second()));
-          EEPROM.write(14, horarioVerano);
-        }
-      }
-
-      if (!cargando && peticionCarga){
-        inicioCargaActivado = true;
-        bateriaCargada = false;
-      }
-	  
+      
       //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado && !errorCarga){
       //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
@@ -319,7 +320,11 @@ void loop() {
               puedeCargar = true;
               break;
             case EXCEDENTESFV:
-              if (HayExcedentesFV())puedeCargar = true;
+              if (HayExcedentesFV()){
+                puedeCargar = true;
+              }else if (generacionFVAmperios < 2){
+                FinalizarCarga();
+              }
               break;
             case INTELIGENTE:
               if (conTarifaValle){
@@ -345,17 +350,20 @@ void loop() {
               }
               break;
           }
-          if (puedeCargar && permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
-            bateriaCargada = true;
-            FinalizarCarga();
-            puedeCargar = false;
-          }
           if (puedeCargar){
-            cargaCompleta = false;
-            tempWatiosCargados = watiosCargados;
             duracionPulso = CalcularDuracionPulso();
-            permisoCarga = true;
-            digitalWrite(pinAlimentacionCargador, HIGH);
+            if (permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+              bateriaCargada = true;
+              FinalizarCarga();
+            }else{
+              cargaCompleta = false;
+              tempWatiosCargados = watiosCargados;
+              duracionPulso = CalcularDuracionPulso();
+              permisoCarga = true;
+            }
+          }else if (permisoCarga){
+            permisoCarga = false;
+            digitalWrite(pinAlimentacionCargador, LOW);
           }
         }
         //****************  DURANTE LA CARGA  ***************  
@@ -406,7 +414,7 @@ void loop() {
                   }
                   break;
                 case FRANJAHORARIA:
-                  if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()) {
+                  if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()){
                     permisoCarga = false; 
                     digitalWrite(pinAlimentacionCargador, LOW);
                   }
@@ -427,13 +435,14 @@ void loop() {
     }
     actualizarDatos = false;
   }
+  
 	// ********************* CONTROL DE LAS PULSACIONES EN EL TECLADO ************************
-  if (digitalRead(pinPulsadorInicio) == HIGH) {
+  if (digitalRead(pinPulsadorInicio) == HIGH){
     if (!flancoBotonInicio && (actualMillis - tiempoOffBoton > 100)){
       ProcesarBoton(BOTONINICIO);
       flancoBotonInicio = true;
     }
-  }else if(flancoBotonInicio){
+  }else if (flancoBotonInicio){
     flancoBotonInicio = false;
     tiempoOffBoton = actualMillis;
   }
@@ -442,7 +451,7 @@ void loop() {
       ProcesarBoton(BOTONPROG);
       flancoBotonProg = true;
     }
-  }else if(flancoBotonProg){
+  }else if (flancoBotonProg){
     flancoBotonProg = false;
     tiempoOffBoton = actualMillis;
   }
@@ -451,7 +460,7 @@ void loop() {
       ProcesarBoton(BOTONMAS);
       flancoBotonMas = true;
     }
-  }else if(flancoBotonMas){
+  }else if (flancoBotonMas){
     flancoBotonMas = false;
     tiempoOffBoton = actualMillis;
   }
@@ -460,7 +469,7 @@ void loop() {
       ProcesarBoton(BOTONMENOS);
       flancoBotonMenos = true;
     }
-  }else if(flancoBotonMenos){
+  }else if (flancoBotonMenos){
     flancoBotonMenos = false;
     tiempoOffBoton = actualMillis;
   }
@@ -484,6 +493,7 @@ void loop() {
     ticksScreen = 0;
   }
 }
+
 // ******************* RUTINA DE INICIO DE CARGA ******************
 void IniciarCarga(){
   watiosCargados = 0;
@@ -493,6 +503,7 @@ void IniciarCarga(){
   EEPROM.write(11, tipoCarga);
   EEPROM.write(13, inicioCargaActivado);
 }
+
 // ******************* RUTINA DE FINALIZACIÓN DE CARGA ******************
 void FinalizarCarga(){
   digitalWrite(pinAlimentacionCargador, LOW);
@@ -501,9 +512,11 @@ void FinalizarCarga(){
   permisoCarga = false;
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
+  tiempoNoGeneraSuficiente = 0;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
+
 // ******************* RUTINA DE PROCESAMIENTO DE LOS MENÚS ******************
 void ProcesarBoton(int button){
   unsigned long tempMillis = millis();
@@ -1273,13 +1286,21 @@ void updateScreen(){
           lcd.print(watiosCargados / 100);
           lcd.print(F(" Wh    "));
         }else if (inicioCargaActivado){
-          if (cargando){
-            MostrarPantallaCarga();
+          if (errorCarga){
+            lcd.setCursor(0, 1);
+            lcd.print(F("ERROR DE CARGA. "));
+          }else if (permisoCarga){
+            if (cargando){
+              MostrarPantallaCarga();
+            }else{
+              lcd.setCursor(0, 1);
+              lcd.print(F("ESP. COND. COCHE"));
+            }
           }else if (conectado){
             switch (tipoCarga){
               case EXCEDENTESFV:
-                 lcd.setCursor(0, 1);
-                 lcd.print(F("GEN. FV INSUFIC."));
+                lcd.setCursor(0, 1);
+                lcd.print(F("GEN. FV INSUFIC."));
                 break;
               case INTELIGENTE:
                 lcd.setCursor(0, 1);
@@ -1306,9 +1327,6 @@ void updateScreen(){
                 MostrarPantallaCarga();
                 break;
             }
-          }else if (errorCarga){
-            lcd.setCursor(0, 1);
-            lcd.print(F("ERROR DE CARGA. "));
           }else{
             lcd.setCursor(0, 1);
             lcd.print(F("COCHE NO CONECT."));
