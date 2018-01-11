@@ -2,7 +2,7 @@
 #include <RTClib.h>
 #include <TimerOne.h>
 #include <LiquidCrystal_I2C.h>
-#include <EEPROM.h>//Se incluye la librería EEPROM
+#include <EEPROM.h>
 
 LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Algunas pantallas llevan por defecto la dirección 27 y otras la 3F
 
@@ -172,11 +172,15 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.53 ****"));
+  lcd.print(F("**** V 1.53a ***"));
   delay(1500);
   
   if (!inicioCargaActivado){
-    if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
+    if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) {
+		tipoCarga = INTELIGENTE;
+		if (conTarifaValle) tipoCargaInteligente = TARIFAVALLE;
+		else tipoCargaInteligente = FRANJAHORARIA;
+	}
     else if (conTarifaValle)tipoCarga = TARIFAVALLE;
     else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   }
@@ -1867,13 +1871,13 @@ void EEPROMWritelong(int address, long value){   //    Función que permite escr
 }
 
 long EEPROMReadlong(long address){       //    Función que permite leer un dato de tipo Long de la eeprom partiendo de 4 Bytes
-  //Read the 4 bytes from the eeprom memory.
+  //Lee los 4 bytes de la memeria eeprom.
   long four = EEPROM.read(address);
   long three = EEPROM.read(address + 1);
   long two = EEPROM.read(address + 2);
   long one = EEPROM.read(address + 3);
 
-  //Return the recomposed long by using bitshift.
+  //Devuelve el long adecuando (desplazando) los datos antes de sumarlos.
   return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
 }
 
@@ -1883,6 +1887,7 @@ void MonitorizarDatos(){
   Serial.println("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios);
   Serial.println("Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
   Serial.println("Generación FV Amperios ----> " + (String)generacionFVAmperios);
+  Serial.println("Batería Cargada -----------> " + bateriaCargada);
   Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
 }
 
