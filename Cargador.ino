@@ -178,9 +178,9 @@ void setup() {
   
   if (!inicioCargaActivado){
     if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) {
-  		tipoCarga = INTELIGENTE;
-  		if (conTarifaValle) tipoCargaInteligente = TARIFAVALLE;
-  		else tipoCargaInteligente = FRANJAHORARIA;
+      tipoCarga = INTELIGENTE;
+      if (conTarifaValle) tipoCargaInteligente = TARIFAVALLE;
+      else tipoCargaInteligente = FRANJAHORARIA;
     }else if (conTarifaValle)tipoCarga = TARIFAVALLE;
     else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   }
