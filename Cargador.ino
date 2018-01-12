@@ -39,14 +39,15 @@ volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
 byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false;
-bool cargaAntesEcu = 0 , cargaEcu = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
-bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, flancoBotonProg = false;
-bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false;
+bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
+bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, errorLimiteConsumo = false;
+bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
-unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0, tiempoErrorCarga = 0;
+unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
+unsigned long tiempoErrorCarga = 0, tiempoSinConsumoRestante = 0, tiempoConConsumoRestante = 0;
 
 DateTime timeNow;
 const float factor = 0.244;
@@ -172,16 +173,15 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F(" WALLBOX FEBOAB "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.53a ***"));
+  lcd.print(F("**** V 1.54 ****"));
   delay(1500);
   
   if (!inicioCargaActivado){
     if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) {
-		tipoCarga = INTELIGENTE;
-		if (conTarifaValle) tipoCargaInteligente = TARIFAVALLE;
-		else tipoCargaInteligente = FRANJAHORARIA;
-	}
-    else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+  		tipoCarga = INTELIGENTE;
+  		if (conTarifaValle) tipoCargaInteligente = TARIFAVALLE;
+  		else tipoCargaInteligente = FRANJAHORARIA;
+    }else if (conTarifaValle)tipoCarga = TARIFAVALLE;
     else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
   }
   digitalWrite(pinRegulacionCargador, HIGH);
@@ -355,15 +355,13 @@ void loop() {
               break;
           }
           if (puedeCargar){
-            duracionPulso = CalcularDuracionPulso();
             if (permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
               bateriaCargada = true;
               FinalizarCarga();
             }else{
               cargaCompleta = false;
               tempWatiosCargados = watiosCargados;
-              duracionPulso = CalcularDuracionPulso();
-              permisoCarga = true;
+              if (CalcularDuracionPulso(actualMillis)) permisoCarga = true;
             }
           }else if (permisoCarga){
             permisoCarga = false;
@@ -372,7 +370,7 @@ void loop() {
         }
         //****************  DURANTE LA CARGA  ***************  
         else if (cargando){
-          CalcularEnergias();
+          CalcularEnergias(actualMillis);
           switch(tipoCarga){
             case TARIFAVALLE:
               if (!EnTarifaValle(horaNow)) FinalizarCarga();
@@ -388,12 +386,8 @@ void loop() {
               break;
             case EXCEDENTESFV:
               if (!HayExcedentesFV()){
-                if (generacionFVAmperios < 2){
-                  FinalizarCarga();
-                }else{
-                  permisoCarga = false;
-                  digitalWrite(pinAlimentacionCargador, LOW);
-                }
+                if (generacionFVAmperios < 2) FinalizarCarga();
+                else permisoCarga = false;
               }
               break;
             case INTELIGENTE:
@@ -404,36 +398,29 @@ void loop() {
                   }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
                     if (EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = FRANJAHORARIA;
                   }
-                  if (tipoCargaInteligente == EXCEDENTESFV && !HayExcedentesFV()){
-                    permisoCarga = false;
-                    digitalWrite(pinAlimentacionCargador, LOW);
-                  }
+                  if (tipoCargaInteligente == EXCEDENTESFV && !HayExcedentesFV()) permisoCarga = false;
                 case TARIFAVALLE:
                   if (!EnTarifaValle(horaNow)){
                     if (HayExcedentesFV())tipoCargaInteligente = EXCEDENTESFV;
-                    else{
-                      permisoCarga = false;
-                      digitalWrite(pinAlimentacionCargador, LOW);
-                    }
+                    else permisoCarga = false;
                   }
                   break;
                 case FRANJAHORARIA:
-                  if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()){
-                    permisoCarga = false; 
-                    digitalWrite(pinAlimentacionCargador, LOW);
-                  }
+                  if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()) permisoCarga = false;
                   if (!EnFranjaHoraria(horaNow, minutoNow)){
                     if (HayExcedentesFV())tipoCargaInteligente = EXCEDENTESFV;
-                    else{
-                      permisoCarga = false;
-                      digitalWrite(pinAlimentacionCargador, LOW);
-                    }
+                    else permisoCarga = false;
                   }
                   break;
               }
               break;
           }
-          if (permisoCarga) duracionPulso = CalcularDuracionPulso();
+          if (permisoCarga){
+            if (!CalcularDuracionPulso(actualMillis)){
+              permisoCarga = false;
+            }
+          }
+          if (!permisoCarga) digitalWrite(pinAlimentacionCargador, LOW);
         }
       }
     }
@@ -517,6 +504,9 @@ void FinalizarCarga(){
   inicioCargaActivado = false;
   tiempoInicioSesion = 0;
   tiempoNoGeneraSuficiente = 0;
+  tiempoSinConsumoRestante = 0;
+  tiempoConConsumoRestante = 0;
+  errorLimiteConsumo = false;
   EEPROM.write(13, inicioCargaActivado);
   EEPROMWritelong(15, kwTotales);
 }
@@ -1293,6 +1283,9 @@ void updateScreen(){
           if (errorCarga){
             lcd.setCursor(0, 1);
             lcd.print(F("ERROR DE CARGA. "));
+          }else if (errorLimiteConsumo){
+            lcd.setCursor(0, 1);
+            lcd.print(F("LIM. DE CONSUMO "));
           }else if (permisoCarga){
             if (cargando){
               MostrarPantallaCarga();
@@ -1784,7 +1777,8 @@ bool HayExcedentesFV(){
     if ((currentMillis - tiempoGeneraSuficiente) >= (long)tiempoConGeneracion * 60000l) return true;   // Si hay excedentes durante más de x minutos activamos la carga
   } else{    // Si NO hay excedentes suficientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
-    if ((currentMillis - tiempoNoGeneraSuficiente) < (long)tiempoSinGeneracion * 60000l) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
+    long tiempo = (long)tiempoSinGeneracion * 60000l;
+    if ((currentMillis - tiempoNoGeneraSuficiente) < tiempo && currentMillis >= tiempo) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
   }
   return false;
 }
@@ -1803,8 +1797,7 @@ bool EnFranjaHoraria(int horaNow, int minutoNow){
   return false;
 }
 
-void CalcularEnergias(){
-  unsigned long currentMillis = millis();
+void CalcularEnergias(unsigned long currentMillis){
   if (tiempoInicioSesion == 0) {
     tiempoInicioSesion = currentMillis;    // Al comienzo de la sesión de carga comenzamos a contar el tiempo para saber cuanto tiempo llevamos ....
     tiempoCalculoEnergiaCargada = currentMillis;
@@ -1823,21 +1816,52 @@ void CalcularEnergias(){
   }
 }
 
-int CalcularDuracionPulso(){
-  int pulso;
+bool CalcularDuracionPulso(unsigned long currentMillis){
+  int consumo = ObtenerConsumoRestante();
+  bool puedeCargar = false;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
-    if (!conSensorGeneral || !cargaPorExcedentes) pulso = ((generacionFVAmperios * 100 / 6) - 28);
-	  else pulso = (((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28);
-  }else{
-    int consumo = ObtenerConsumoRestante();
-    if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la intensidad programada y tenemos el sensor general conectado..
-      pulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+    if (conSensorGeneral && cargaPorExcedentes){
+      duracionPulso = ((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28;
+      puedeCargar = true;
+    }else if (conSensorGeneral){
+      if (consumo > 6){
+        if (consumo > generacionFVAmperios){
+          duracionPulso = (generacionFVAmperios * 100 / 6) - 28;
+          puedeCargar = true;
+        }else{
+          duracionPulso = (consumo * 100 / 6) - 28;
+          puedeCargar = true;
+        }
+      }
     }else{
-      pulso = ((intensidadProgramada * 100 / 6) - 28);
+      duracionPulso = (generacionFVAmperios * 100 / 6) - 28;
+      puedeCargar = true;
+    }
+  }else{
+    if (consumo > 6){
+      if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la intensidad programada y tenemos el sensor general conectado..
+        duracionPulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+        puedeCargar =  true;
+      }else{
+        duracionPulso = ((intensidadProgramada * 100 / 6) - 28);
+        puedeCargar =  true;
+      }
     }
   }
-  if (pulso < 72) pulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
-  return pulso;
+  if (puedeCargar){
+    tiempoConConsumoRestante = currentMillis;
+    if (currentMillis - tiempoConConsumoRestante >= 30000){
+      errorLimiteConsumo = false;
+      return true;
+    }
+  }else{
+    tiempoSinConsumoRestante = currentMillis;
+    if (currentMillis - tiempoSinConsumoRestante < 30000 && currentMillis >= 30000){
+      errorLimiteConsumo = true;
+      return true;
+    }
+  }
+  return false;
 }
 
 int ObtenerConsumoRestante(){
@@ -1848,9 +1872,9 @@ int ObtenerConsumoRestante(){
                       // para tenerlo en cuenta al calcular la intensidad disponible.
                       // Esto es debido a que la normativa permite sacar la alimentación del cargador directamente del contador
                       // Se hace en edificios para no tener que tirar la línea desde el CGP de la vivienda hasta el garage          
-      return (generacionFVAmperios + consumoTotalMax) - (consumoGeneralAmperios - consumoCargadorAmperios); // Si el trafo que mide consumo general incluye el cargador se resta el consumo del cargador
+      return consumoTotalMax - (consumoGeneralAmperios - consumoCargadorAmperios); // Si el trafo que mide consumo general incluye el cargador se resta el consumo del cargador
     }else{
-      return (generacionFVAmperios + consumoTotalMax) - consumoGeneralAmperios; // Si el trafo que mide consumo general no incluye el cargador no se resta el consumo del cargador
+      return consumoTotalMax - consumoGeneralAmperios; // Si el trafo que mide consumo general no incluye el cargador no se resta el consumo del cargador
     }
   }
 }
