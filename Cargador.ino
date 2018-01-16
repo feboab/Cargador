@@ -39,7 +39,7 @@ volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
 byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false;
-bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
+bool puedeCargar = 0, puedeCargarPot = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
 bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, errorLimiteConsumo = false;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
@@ -310,7 +310,7 @@ void loop() {
       if (conectado && inicioCargaActivado && !errorCarga){
       //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
         if (!cargando && (!cargaCompleta || peticionCarga)){
-          bool puedeCargar = false;
+          puedeCargar = false;
           switch(tipoCarga){
             case TARIFAVALLE:
               if (EnTarifaValle(horaNow)) puedeCargar = true;
@@ -361,7 +361,7 @@ void loop() {
             }else{
               cargaCompleta = false;
               tempWatiosCargados = watiosCargados;
-              if (CalcularDuracionPulso(actualMillis)) permisoCarga = true;
+              if (HayPotenciaParaCargar(actualMillis)) permisoCarga = true;
             }
           }else if (permisoCarga){
             permisoCarga = false;
@@ -416,7 +416,7 @@ void loop() {
               break;
           }
           if (permisoCarga){
-            if (!CalcularDuracionPulso(actualMillis)){
+            if (!HayPotenciaParaCargar(actualMillis)){
               permisoCarga = false;
             }
           }
@@ -668,10 +668,10 @@ void ProcesarBoton(int button){
             opcionNumero = 0;
             break;
           case BOTONMAS:
-            (opcionNumero >= 8) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 9) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero <= 0) ? opcionNumero = 8 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 9 : opcionNumero--;
             break;          
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -1285,7 +1285,7 @@ void updateScreen(){
             lcd.print(F("ERROR DE CARGA. "));
           }else if (errorLimiteConsumo){
             lcd.setCursor(0, 1);
-            lcd.print(F("LIM. DE CONSUMO "));
+            lcd.print(F("ESPERA POTENCIA "));
           }else if (permisoCarga){
             if (cargando){
               MostrarPantallaCarga();
@@ -1473,7 +1473,16 @@ void updateScreen(){
           lcd.setCursor(0, 1);
           lcd.print(F("      "));
           lcd.print(tensionCargador);
-          (tensionCargador <= 500) ? lcd.print(F("  ERROR")) : lcd.print(F("       "));
+          lcd.print(F("       "));
+          break;
+		case 9:
+          lcd.print(F("DURACION PULSO: "));
+          lcd.setCursor(0, 1);
+          lcd.print(F("      "));
+          lcd.print(duracionPulso);
+          lcd.print(F("    "));
+		  if (permisoCarga || bateriaCargada) lcd.print(F("ON "));
+		  else lcd.print(F("OFF"));
           break;
       }
       break;
@@ -1816,41 +1825,41 @@ void CalcularEnergias(unsigned long currentMillis){
   }
 }
 
-bool CalcularDuracionPulso(unsigned long currentMillis){
-  int consumo = ObtenerConsumoRestante();
-  bool puedeCargar = false;
+bool HayPotenciaParaCargar(unsigned long currentMillis){
+  int IntensidadEfectivaCarga = IntensidadDisponible();
+      puedeCargarPot = false;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
     if (conSensorGeneral && cargaPorExcedentes){
       duracionPulso = ((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28;
-      puedeCargar = true;
+      puedeCargarPot = true;
     }else if (conSensorGeneral){
-      if (consumo > 6){
-        if (consumo > generacionFVAmperios){
+      if (IntensidadEfectivaCarga > 6){
+        if (IntensidadEfectivaCarga > generacionFVAmperios){
           duracionPulso = (generacionFVAmperios * 100 / 6) - 28;
-          puedeCargar = true;
+          puedeCargarPot = true;
         }else{
-          duracionPulso = (consumo * 100 / 6) - 28;
-          puedeCargar = true;
+          duracionPulso = (IntensidadEfectivaCarga * 100 / 6) - 28;
+          puedeCargarPot = true;
         }
       }
     }else{
       duracionPulso = (generacionFVAmperios * 100 / 6) - 28;
-      puedeCargar = true;
+      puedeCargarPot = true;
     }
   }else{
-    if (consumo > 6){
-      if ((consumo < intensidadProgramada) && conSensorGeneral){  // Si el consumo restante es menor que la intensidad programada y tenemos el sensor general conectado..
-        duracionPulso = ((consumo * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
-        puedeCargar =  true;
+    if (IntensidadEfectivaCarga > 6){
+      if ((IntensidadEfectivaCarga < intensidadProgramada) && conSensorGeneral){  // Si la Intensidad Efectiva de Carga es menor que la intensidad programada y tenemos el sensor general conectado..
+        duracionPulso = ((IntensidadEfectivaCarga * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+        puedeCargarPot =  true;
       }else{
         duracionPulso = ((intensidadProgramada * 100 / 6) - 28);
-        puedeCargar =  true;
+        puedeCargarPot =  true;
       }
     }
   }
-  if (puedeCargar){
+  if (puedeCargarPot){
     tiempoConConsumoRestante = currentMillis;
-    if (currentMillis - tiempoConConsumoRestante >= 30000){
+    if ((currentMillis - tiempoConConsumoRestante) >= ((long)tiempoConGeneracion * 60000l)){
       errorLimiteConsumo = false;
       return true;
     }
@@ -1864,38 +1873,35 @@ bool CalcularDuracionPulso(unsigned long currentMillis){
   return false;
 }
 
-int ObtenerConsumoRestante(){
+int IntensidadDisponible(){
   if (!conSensorGeneral){
-    return 32;                    // Asignamos 32 Amperios como consumo restante
-  }else {
-    if (cargadorEnConsumoGeneral){ // Aquí se controla si el cargador está incluido en el trafo de consumo general de la vivienda,
-                      // para tenerlo en cuenta al calcular la intensidad disponible.
-                      // Esto es debido a que la normativa permite sacar la alimentación del cargador directamente del contador
-                      // Se hace en edificios para no tener que tirar la línea desde el CGP de la vivienda hasta el garage          
-      return consumoTotalMax - (consumoGeneralAmperios - consumoCargadorAmperios); // Si el trafo que mide consumo general incluye el cargador se resta el consumo del cargador
+    return 32;                     // Asignamos 32 Amperios como consumo restante
+  }else{
+    if (cargadorEnConsumoGeneral){ // Aquí se controla si el cargador está incluido en el sensor de consumo general de la vivienda,         
+      return (consumoTotalMax - (consumoGeneralAmperios - consumoCargadorAmperios)); // Si el sensor que mide consumo general incluye el cargador se resta el consumo del cargador
     }else{
-      return consumoTotalMax - consumoGeneralAmperios; // Si el trafo que mide consumo general no incluye el cargador no se resta el consumo del cargador
+      return (consumoTotalMax - consumoGeneralAmperios); // Si el sensor que mide consumo general no incluye el cargador no se resta el consumo del cargador
     }
   }
 }
 
 void EEPROMWritelong(int address, long value){   //    Función que permite escribir un dato de tipo Long en la eeprom partiendolo en 4 Bytes
-  //Decomposition from a long to 4 bytes by using bitshift.
-  //One = Most significant -> Four = Least significant byte
+  //Descomponemos un log en 4 bytes usando la función bitshift.
+  //One = Byte más significante -> Four = Byte menos significante.
   byte four = (value & 0xFF);
   byte three = ((value >> 8) & 0xFF);
   byte two = ((value >> 16) & 0xFF);
   byte one = ((value >> 24) & 0xFF);
 
-  //Write the 4 bytes into the eeprom memory.
+  //Escribe los 4 bytes en la memoria eeprom.
   EEPROM.write(address, four);
   EEPROM.write(address + 1, three);
   EEPROM.write(address + 2, two);
   EEPROM.write(address + 3, one);
 }
 
-long EEPROMReadlong(long address){       //    Función que permite leer un dato de tipo Long de la eeprom partiendo de 4 Bytes
-  //Lee los 4 bytes de la memeria eeprom.
+long EEPROMReadlong(long address){       // Función que permite leer un dato de tipo Long de la eeprom partiendo de 4 Bytes
+  //Lee los 4 bytes de la memoria eeprom.
   long four = EEPROM.read(address);
   long three = EEPROM.read(address + 1);
   long two = EEPROM.read(address + 2);
@@ -1911,7 +1917,10 @@ void MonitorizarDatos(){
   Serial.println("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios);
   Serial.println("Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
   Serial.println("Generación FV Amperios ----> " + (String)generacionFVAmperios);
-  Serial.println("Batería Cargada -----------> " + bateriaCargada);
+  Serial.print("Puede Cargar por Potencia -> "); if (puedeCargarPot) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Puede Cargar --------------> "); if (puedeCargar) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Permiso de Carga-----------> "); if (permisoCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
 }
 
