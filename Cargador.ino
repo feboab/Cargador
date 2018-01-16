@@ -1826,6 +1826,9 @@ void CalcularEnergias(unsigned long currentMillis){
 }
 
 bool HayPotenciaParaCargar(unsigned long currentMillis){
+  if (tiempoConConsumoRestante > currentMillis) tiempoConConsumoRestante = currentMillis;
+  if (tiempoSinConsumoRestante > currentMillis) tiempoSinConsumoRestante = currentMillis;
+  
   int IntensidadEfectivaCarga = IntensidadDisponible();
       puedeCargarPot = false;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
@@ -1858,13 +1861,13 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
     }
   }
   if (puedeCargarPot){
-    tiempoConConsumoRestante = currentMillis;
+    tiempoSinConsumoRestante = currentMillis;
     if ((currentMillis - tiempoConConsumoRestante) >= ((long)tiempoConGeneracion * 60000l)){
       errorLimiteConsumo = false;
       return true;
     }
   }else{
-    tiempoSinConsumoRestante = currentMillis;
+    tiempoConConsumoRestante = currentMillis;
     if (currentMillis - tiempoSinConsumoRestante < 30000 && currentMillis >= 30000){
       errorLimiteConsumo = true;
       return true;
