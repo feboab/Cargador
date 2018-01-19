@@ -173,7 +173,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.54 ****"));
+  lcd.print(F("**** V 1.54d ***"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
