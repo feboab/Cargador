@@ -4,7 +4,7 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 
-LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Algunas pantallas llevan por defecto la dirección 27 y otras la 3F
+LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Configuramos la pantalla con la dirección 3F
 
 //              DEFINICIÓN PINES ENTRADAS ANALOGICAS
 const int pinGeneracionFV = 0;      // define el pin 0 como 'Generación FV'
@@ -39,7 +39,7 @@ volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
 byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false;
-bool puedeCargar = 0, puedeCargarPot = 0, bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
+bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
 bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, errorLimiteConsumo = false;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
@@ -51,7 +51,7 @@ unsigned long tiempoErrorCarga = 0, tiempoSinConsumoRestante = 0, tiempoConConsu
 
 DateTime timeNow;
 const float factor = 0.244;
-byte enheM[8] = { B01110, B00000, B10001, B11001, B10101, B10011, B10001, B00000}; //definimos el nuevo carácter Ñ
+byte enheM[8] = { B01110, B00000, B10001, B11001, B10101, B10011, B10001, B00000}; //Definimos el nuevo carácter Ñ
 const int daysInMonth[] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
 // VARIABLES PARA EL RELOJ RTC ---------------
@@ -65,9 +65,9 @@ const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
 void setup() {
   //    ---------Se establece el valor del prescaler----------------
-  ADCSRA &= ~PS_128;  // remove bits set by Arduino library
-  // you can choose a prescaler from above. PS_16, PS_32, PS_64 or PS_128
-  ADCSRA |= PS_32;    // set our own prescaler to 32
+  ADCSRA &= ~PS_128;  // Eliminamos la configuración de la librería Arduino
+  // Podemos elegir un prescaler entre PS_16, PS_32, PS_64 or PS_128
+  ADCSRA |= PS_32;    // Configuramos el prescaler a 32
 
 // DEFINICIÓN DE LOS PINES COMO ENTRADA O SALIDA
   pinMode(pinRegulacionCargador, OUTPUT);
@@ -171,11 +171,12 @@ void setup() {
   Timer1.attachInterrupt(GenPulsos); // Activa la interrupcion y la asocia a la rutina GenPulsos
   
   lcd.setCursor(0, 0);
-  lcd.print(F(" WALLBOX FEBOAB "));
+  lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.54 ****"));
+  lcd.print(F("**** V 1.54c ****"));
   delay(1500);
   
+  //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
   if (!inicioCargaActivado){
     if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) {
       tipoCarga = INTELIGENTE;
@@ -188,7 +189,7 @@ void setup() {
   tiempoUltimaPulsacionBoton = millis();
 }
 
- //----RUTINA DE GENERACIÓN DE LA ONDA CUADRADA----
+ //********** RUTINA DE GENERACIÓN DE LA ONDA CUADRADA ***********
 void GenPulsos() {                         
   if (permisoCarga || bateriaCargada) {            // Si hay permiso de carga ......
     digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
@@ -310,7 +311,7 @@ void loop() {
       if (conectado && inicioCargaActivado && !errorCarga){
       //*********************   ANTES DE EMPEZAR A CARGAR   ******************  
         if (!cargando && (!cargaCompleta || peticionCarga)){
-          puedeCargar = false;
+          bool puedeCargar = false;
           switch(tipoCarga){
             case TARIFAVALLE:
               if (EnTarifaValle(horaNow)) puedeCargar = true;
@@ -1706,14 +1707,19 @@ void updateScreen(){
 }
 
 void MostrarPantallaCarga(){
-  if (tipoCarga == INTELIGENTE) MostrarTipoCarga(); // V146	
+  if (tipoCarga == INTELIGENTE) MostrarTipoCarga();
   lcd.setCursor(0, 1);
   lcd.print(F("CARGA:"));
   if (consumoCargadorAmperios < 10)lcd.print(F(" "));
   lcd.print(consumoCargadorAmperios);
   lcd.print(F("A "));
+  if (watiosCargados < 10000l){
   lcd.print(watiosCargados / 100);
-  lcd.print(F("Wh   ")); // Al pasar de 10KWh cargados no se mostrará la "h", me parece un mal menor .......
+  lcd.print(F("Wh   ")); // Hasta 10KWh cargados mostramos los watios hora
+  }else{
+  lcd.print(watiosCargados / 100000l);
+  lcd.print(F("kWh  ")); // A partir de 10KWh cargados mostramos los kilowatios hora
+  }	
 }
 
 void MostrarTiempoRestante(int minutosRestantes){
@@ -1774,6 +1780,7 @@ bool EsHorarioVerano(DateTime fecha){
   return false;
 }
 
+//******************* CONTROL DE SI HAY EXCEDENTES FOTOVOLTAICOS ******************
 bool HayExcedentesFV(){
   unsigned long currentMillis = millis();
   if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
@@ -1792,10 +1799,12 @@ bool HayExcedentesFV(){
   return false;
 }
 
+//************** CONTROL DE SI ESTAMOS DENTRO DEL LA TARIFA REDUCIDA *******************
 bool EnTarifaValle(int horaNow){
   return (horarioVerano && (horaNow >= 23 || horaNow < 13)) || (!horarioVerano && (horaNow >= 22 || horaNow < 12));
 }
 
+//************** CONTROL DE SI ESTAMOS DENTRO DEL HORARIO PROGRAMADO ******************
 bool EnFranjaHoraria(int horaNow, int minutoNow){
   if (horaInicioCarga == horaFinCarga && minutoInicioCarga == minutoFinCarga) return false;
   int minutosInicio = horaInicioCarga * 60 + minutoInicioCarga;
@@ -1825,59 +1834,58 @@ void CalcularEnergias(unsigned long currentMillis){
   }
 }
 
+//******************* CONTROL DE LA POTENCIA DISPONIBLE EN LA VIVIENDA PARA CARGAR ************************
 bool HayPotenciaParaCargar(unsigned long currentMillis){
-  if (tiempoConConsumoRestante > currentMillis) tiempoConConsumoRestante = currentMillis;
-  if (tiempoSinConsumoRestante > currentMillis) tiempoSinConsumoRestante = currentMillis;
-  
-  int IntensidadEfectivaCarga = IntensidadDisponible();
-      puedeCargarPot = false;
-  if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){
-    if (conSensorGeneral && cargaPorExcedentes){
-      duracionPulso = ((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28;
+  int IntensidadCalculadaCarga = IntensidadDisponible();
+  bool puedeCargarPot = false;
+  if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){  //En los tipos de carga FV..
+    if (conSensorGeneral && cargaPorExcedentes){     //Si tenemos sensor general y la carga FV es por excedentes..
+      duracionPulso = ((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28;  // Calculamos restanto el consumo a la generación.. 
       puedeCargarPot = true;
-    }else if (conSensorGeneral){
-      if (IntensidadEfectivaCarga > 6){
-        if (IntensidadEfectivaCarga > generacionFVAmperios){
-          duracionPulso = (generacionFVAmperios * 100 / 6) - 28;
+    }else if (conSensorGeneral){  // Si no cargamos por excedentes ..
+      if (IntensidadCalculadaCarga > 5){ // y la intensidad calculada de carga fuese 6 o más amperios ..
+        if (IntensidadCalculadaCarga > generacionFVAmperios){  // y además es mayor que la generación FV ..
+          duracionPulso = (generacionFVAmperios * 100 / 6) - 28; // calculamos el pulso según la generación.
           puedeCargarPot = true;
-        }else{
-          duracionPulso = (IntensidadEfectivaCarga * 100 / 6) - 28;
+        }else{                                               // si la intensidad calculada fuese menor que la generación FV..
+          duracionPulso = (IntensidadCalculadaCarga * 100 / 6) - 28; // calculamos el pulso según la intensidad calculada.
           puedeCargarPot = true;
         }
       }
-    }else{
-      duracionPulso = (generacionFVAmperios * 100 / 6) - 28;
+    }else{                       // si no tenemos sensor general..
+      duracionPulso = (generacionFVAmperios * 100 / 6) - 28;  // calculamos el pulso según la generación.
       puedeCargarPot = true;
     }
   }else{
-    if (IntensidadEfectivaCarga > 6){
-      if ((IntensidadEfectivaCarga < intensidadProgramada) && conSensorGeneral){  // Si la Intensidad Efectiva de Carga es menor que la intensidad programada y tenemos el sensor general conectado..
-        duracionPulso = ((IntensidadEfectivaCarga * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+    if (IntensidadCalculadaCarga > 5){  // Si la intensiada calculada de carga es 6 o más amperios ..
+      if ((IntensidadCalculadaCarga < intensidadProgramada) && conSensorGeneral){  // si la Intensidad Calculada de Carga es menor que la intensidad programada y tenemos el sensor general conectado..
+        duracionPulso = ((IntensidadCalculadaCarga * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
         puedeCargarPot =  true;
-      }else{
-        duracionPulso = ((intensidadProgramada * 100 / 6) - 28);
+      }else{  // si la Intensidad Calculada de Carga es mayor que la intensidad programada y tenemos el sensor general conectado ..
+        duracionPulso = ((intensidadProgramada * 100 / 6) - 28); // calculamos el pulso según la intensidad programada.
         puedeCargarPot =  true;
       }
     }
   }
-  if (puedeCargarPot){
+  if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
     tiempoSinConsumoRestante = currentMillis;
-    if ((currentMillis - tiempoConConsumoRestante) >= ((long)tiempoConGeneracion * 60000l)){
-      errorLimiteConsumo = false;
-      return true;
+    if (((currentMillis - tiempoConConsumoRestante) >= ((long)tiempoConGeneracion * 60000l)) || (currentMillis < ((long)tiempoConGeneracion * 60000l))){
+      errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
+      return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
     tiempoConConsumoRestante = currentMillis;
-    if (currentMillis - tiempoSinConsumoRestante < 30000 && currentMillis >= 30000){
-      errorLimiteConsumo = true;
-      return true;
+    if (((currentMillis - tiempoSinConsumoRestante) < 30000) && (currentMillis >= 30000)){
+      errorLimiteConsumo = true;  // si han pasado 30 segundos sin Potencia suficiente para cargar..
+      return true;                // activamos el error por Límite de Consumo.
     }
   }
   return false;
 }
 
+//************** CALCULO DE LA INTENSIDAD DISPONIBLE ***********************
 int IntensidadDisponible(){
-  if (!conSensorGeneral){
+  if (!conSensorGeneral){          // Si no hay sensor general....
     return 32;                     // Asignamos 32 Amperios como consumo restante
   }else{
     if (cargadorEnConsumoGeneral){ // Aquí se controla si el cargador está incluido en el sensor de consumo general de la vivienda,         
@@ -1887,10 +1895,10 @@ int IntensidadDisponible(){
     }
   }
 }
-
-void EEPROMWritelong(int address, long value){   //    Función que permite escribir un dato de tipo Long en la eeprom partiendolo en 4 Bytes
-  //Descomponemos un log en 4 bytes usando la función bitshift.
-  //One = Byte más significante -> Four = Byte menos significante.
+// ************** FUNCIÓN PARA ESCRIBIR UN DOBLE ENTERO EN MEMORIA ************
+void EEPROMWritelong(int address, long value){
+  //Descomponemos un doble entero (long) en 4 bytes usando la función bitshift.
+  //One = Byte más significativo -> Four = Byte menos significativo.
   byte four = (value & 0xFF);
   byte three = ((value >> 8) & 0xFF);
   byte two = ((value >> 16) & 0xFF);
@@ -1903,8 +1911,7 @@ void EEPROMWritelong(int address, long value){   //    Función que permite escr
   EEPROM.write(address + 3, one);
 }
 
-long EEPROMReadlong(long address){       // Función que permite leer un dato de tipo Long de la eeprom partiendo de 4 Bytes
-  //Lee los 4 bytes de la memoria eeprom.
+long EEPROMReadlong(long address){       // Función que permite leer un dato de tipo doble entero (long) de la eeprom partiendo de 4 Bytes
   long four = EEPROM.read(address);
   long three = EEPROM.read(address + 1);
   long two = EEPROM.read(address + 2);
@@ -1920,9 +1927,7 @@ void MonitorizarDatos(){
   Serial.println("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios);
   Serial.println("Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
   Serial.println("Generación FV Amperios ----> " + (String)generacionFVAmperios);
-  Serial.print("Puede Cargar por Potencia -> "); if (puedeCargarPot) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
-  Serial.print("Puede Cargar --------------> "); if (puedeCargar) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Permiso de Carga-----------> "); if (permisoCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
 }
