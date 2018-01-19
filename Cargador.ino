@@ -173,7 +173,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.54c ****"));
+  lcd.print(F("**** V 1.54 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -190,7 +190,8 @@ void setup() {
 }
 
  //********** RUTINA DE GENERACIÓN DE LA ONDA CUADRADA ***********
-void GenPulsos() {                         
+void GenPulsos() {  
+  if (duracionPulso < 72) duracionPulso = 72;                       
   if (permisoCarga || bateriaCargada) {            // Si hay permiso de carga ......
     digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
     delayMicroseconds(duracionPulso); // durante el tiempo que marca "Duración_Pulsos" .... 
