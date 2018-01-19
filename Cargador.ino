@@ -63,7 +63,7 @@ const unsigned char PS_32 = (1 << ADPS2) | (1 << ADPS0);
 const unsigned char PS_64 = (1 << ADPS2) | (1 << ADPS1);
 const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
-void setup() {
+void setup(){
   //    ---------Se establece el valor del prescaler----------------
   ADCSRA &= ~PS_128;  // Eliminamos la configuración de la librería Arduino
   // Podemos elegir un prescaler entre PS_16, PS_32, PS_64 or PS_128
@@ -173,7 +173,7 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.54d ***"));
+  lcd.print(F("**** V 1.55 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -190,8 +190,7 @@ void setup() {
 }
 
  //********** RUTINA DE GENERACIÓN DE LA ONDA CUADRADA ***********
-void GenPulsos() {  
-  if (duracionPulso < 72) duracionPulso = 72;                       
+void GenPulsos(){
   if (permisoCarga || bateriaCargada) {            // Si hay permiso de carga ......
     digitalWrite(pinRegulacionCargador, HIGH);    // activamos el pulso ....
     delayMicroseconds(duracionPulso); // durante el tiempo que marca "Duración_Pulsos" .... 
@@ -204,7 +203,7 @@ void GenPulsos() {
   actualizarDatos = true;
 }
 
-void loop() {
+void loop(){
   
   unsigned long actualMillis = millis();
   
@@ -1477,14 +1476,14 @@ void updateScreen(){
           lcd.print(tensionCargador);
           lcd.print(F("       "));
           break;
-		case 9:
+        case 9:
           lcd.print(F("DURACION PULSO: "));
           lcd.setCursor(0, 1);
           lcd.print(F("      "));
           lcd.print(duracionPulso);
           lcd.print(F("    "));
-		  if (permisoCarga || bateriaCargada) lcd.print(F("ON "));
-		  else lcd.print(F("OFF"));
+          if (permisoCarga || bateriaCargada) lcd.print(F("ON "));
+          else lcd.print(F("OFF"));
           break;
       }
       break;
@@ -1791,11 +1790,12 @@ bool HayExcedentesFV(){
   if (cargaPorExcedentes) generacionSuficiente = (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
   if (generacionSuficiente){                  // Si hay excedentes suficientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
-    if ((currentMillis - tiempoGeneraSuficiente) >= (long)tiempoConGeneracion * 60000l) return true;   // Si hay excedentes durante más de x minutos activamos la carga
+    long tiempo = (long)tiempoConGeneracion * 60000l;
+    if (currentMillis - tiempoGeneraSuficiente >= tiempo || currentMillis < tiempo) return true;   // Si hay excedentes durante más de x minutos activamos la carga
   } else{    // Si NO hay excedentes suficientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
     long tiempo = (long)tiempoSinGeneracion * 60000l;
-    if ((currentMillis - tiempoNoGeneraSuficiente) < tiempo && currentMillis >= tiempo) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
+    if (currentMillis - tiempoNoGeneraSuficiente < tiempo && currentMillis >= tiempo) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
   }
   return false;
 }
@@ -1837,6 +1837,9 @@ void CalcularEnergias(unsigned long currentMillis){
 
 //******************* CONTROL DE LA POTENCIA DISPONIBLE EN LA VIVIENDA PARA CARGAR ************************
 bool HayPotenciaParaCargar(unsigned long currentMillis){
+  if (tiempoConConsumoRestante > currentMillis) tiempoConConsumoRestante = currentMillis;
+  if (tiempoSinConsumoRestante > currentMillis) tiempoSinConsumoRestante = currentMillis;
+  
   int IntensidadCalculadaCarga = IntensidadDisponible();
   bool puedeCargarPot = false;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){  //En los tipos de carga FV..
@@ -1868,15 +1871,17 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
       }
     }
   }
+  if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
     tiempoSinConsumoRestante = currentMillis;
-    if (((currentMillis - tiempoConConsumoRestante) >= ((long)tiempoConGeneracion * 60000l)) || (currentMillis < ((long)tiempoConGeneracion * 60000l))){
+    long tiempo = (long)tiempoConGeneracion * 60000l;
+    if (currentMillis - tiempoConConsumoRestante >= tiempo || currentMillis < tiempo){
       errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
     tiempoConConsumoRestante = currentMillis;
-    if (((currentMillis - tiempoSinConsumoRestante) < 30000) && (currentMillis >= 30000)){
+    if (currentMillis - tiempoSinConsumoRestante < 30000 && currentMillis >= 30000){
       errorLimiteConsumo = true;  // si han pasado 30 segundos sin Potencia suficiente para cargar..
       return true;                // activamos el error por Límite de Consumo.
     }
