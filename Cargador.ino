@@ -357,7 +357,7 @@ void loop(){
               break;
           }
           if (puedeCargar){
-              if (permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+            if (permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
               bateriaCargada = true;
               FinalizarCarga();
             }else{
@@ -1791,13 +1791,13 @@ bool HayExcedentesFV(){
   bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
   if (cargaPorExcedentes) generacionSuficiente = (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
   if (generacionSuficiente){                  // Si hay excedentes suficientes ....
-    tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
+    tiempoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
     long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoGeneraSuficiente > tiempo || currentMillis < tiempo) return true;   // Si hay excedentes durante más de x minutos activamos la carga
+    if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo) return true;   // Si hay excedentes durante más de x minutos activamos la carga
   } else{    // Si NO hay excedentes suficientes ....
-    tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
+    tiempoNoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
     long tiempo = (long)tiempoSinGeneracion * 60000l;
-    if (currentMillis - tiempoNoGeneraSuficiente > tiempo && currentMillis > tiempo) return false; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
+    if (currentMillis - tiempoGeneraSuficiente < tiempo && currentMillis > tiempo) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
   }
   return false;
 }
@@ -1865,10 +1865,10 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   }else{
     if (IntensidadCalculadaCarga > 5){  // Si la Intensidad Calculada de Carga es 6 o más amperios ..
       if ((IntensidadCalculadaCarga < intensidadProgramada) && conSensorGeneral){  // si la Intensidad Calculada de Carga es menor que la intensidad programada y tenemos el sensor general conectado..
-        duracionPulso = ((IntensidadCalculadaCarga * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
+        duracionPulso = (IntensidadCalculadaCarga * 100 / 6) - 28;          // calculamos la duración del pulso en función de la intensidad restante
         puedeCargarPot =  true;
       }else{  // si la Intensidad Calculada de Carga es mayor que la intensidad programada ..
-        duracionPulso = ((intensidadProgramada * 100 / 6) - 28); // calculamos el pulso según la intensidad programada.
+        duracionPulso = (intensidadProgramada * 100 / 6) - 28; // calculamos el pulso según la intensidad programada.
         puedeCargarPot =  true;
       }
     }
@@ -1876,19 +1876,20 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
-    tiempoSinConsumoRestante = currentMillis;
+    tiempoConConsumoRestante = currentMillis;
     long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoConConsumoRestante > tiempo || currentMillis < tiempo){
+    if (currentMillis - tiempoSinConsumoRestante > tiempo || currentMillis < tiempo){
       errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
-    tiempoConConsumoRestante = currentMillis;
-    if (currentMillis - tiempoSinConsumoRestante > 30000 && currentMillis > 30000){
-      errorLimiteConsumo = true;  // si han pasado 30 segundos sin Potencia suficiente para cargar..
-      return false;                // activamos el error por Límite de Consumo.
+    tiempoSinConsumoRestante = currentMillis;
+    if (currentMillis - tiempoConConsumoRestante < 30000 && currentMillis > 30000){
+      errorLimiteConsumo = false;  // si no han pasado 30 segundos sin Potencia suficiente para cargar, seguimos cargando.
+      return true;
     }
   }
+  errorLimiteConsumo = true;
   return false;
 }
 
