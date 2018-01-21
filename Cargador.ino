@@ -173,7 +173,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.55 ****"));
+  lcd.print(F("**** V 1.56 ***"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -262,7 +262,8 @@ void loop(){
           EEPROM.write(14, horarioVerano);
         }
       }
-
+      
+       
       //********************** CONTROL DE LA INFORMACIÓN DEL VEHÍCULO **********************
       if (tensionCargador < 550){
         if (!errorCarga && permisoCarga){
@@ -356,7 +357,7 @@ void loop(){
               break;
           }
           if (puedeCargar){
-            if (permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
+              if (permisoCarga && watiosCargados > tempWatiosCargados){ // si no esta cargando y nada se lo impide y ya ha cargado algo entendemos que acabo de cargar y paramos la carga
               bateriaCargada = true;
               FinalizarCarga();
             }else{
@@ -368,8 +369,8 @@ void loop(){
             permisoCarga = false;
             digitalWrite(pinAlimentacionCargador, LOW);
           }
-        }
-        //****************  DURANTE LA CARGA  ***************  
+         }
+                //****************  DURANTE LA CARGA  ***************  
         else if (cargando){
           CalcularEnergias(actualMillis);
           switch(tipoCarga){
@@ -1481,6 +1482,7 @@ void updateScreen(){
           lcd.setCursor(0, 1);
           lcd.print(F("      "));
           lcd.print(duracionPulso);
+          if (duracionPulso < 100) lcd.print(F(" "));
           lcd.print(F("    "));
           if (permisoCarga || bateriaCargada) lcd.print(F("ON "));
           else lcd.print(F("OFF"));
@@ -1791,16 +1793,16 @@ bool HayExcedentesFV(){
   if (generacionSuficiente){                  // Si hay excedentes suficientes ....
     tiempoNoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
     long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoGeneraSuficiente >= tiempo || currentMillis < tiempo) return true;   // Si hay excedentes durante más de x minutos activamos la carga
+    if (currentMillis - tiempoGeneraSuficiente > tiempo || currentMillis < tiempo) return true;   // Si hay excedentes durante más de x minutos activamos la carga
   } else{    // Si NO hay excedentes suficientes ....
     tiempoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
     long tiempo = (long)tiempoSinGeneracion * 60000l;
-    if (currentMillis - tiempoNoGeneraSuficiente < tiempo && currentMillis >= tiempo) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
+    if (currentMillis - tiempoNoGeneraSuficiente > tiempo && currentMillis > tiempo) return false; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
   }
   return false;
 }
 
-//************** CONTROL DE SI ESTAMOS DENTRO DEL LA TARIFA REDUCIDA *******************
+//************** CONTROL DE SI ESTAMOS DENTRO DE LA TARIFA REDUCIDA *******************
 bool EnTarifaValle(int horaNow){
   return (horarioVerano && (horaNow >= 23 || horaNow < 13)) || (!horarioVerano && (horaNow >= 22 || horaNow < 12));
 }
@@ -1861,29 +1863,30 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
       puedeCargarPot = true;
     }
   }else{
-    if (IntensidadCalculadaCarga > 5){  // Si la intensiada calculada de carga es 6 o más amperios ..
+    if (IntensidadCalculadaCarga > 5){  // Si la Intensidad Calculada de Carga es 6 o más amperios ..
       if ((IntensidadCalculadaCarga < intensidadProgramada) && conSensorGeneral){  // si la Intensidad Calculada de Carga es menor que la intensidad programada y tenemos el sensor general conectado..
         duracionPulso = ((IntensidadCalculadaCarga * 100 / 6) - 28);          // calculamos la duración del pulso en función de la intensidad restante
         puedeCargarPot =  true;
-      }else{  // si la Intensidad Calculada de Carga es mayor que la intensidad programada y tenemos el sensor general conectado ..
+      }else{  // si la Intensidad Calculada de Carga es mayor que la intensidad programada ..
         duracionPulso = ((intensidadProgramada * 100 / 6) - 28); // calculamos el pulso según la intensidad programada.
         puedeCargarPot =  true;
       }
     }
   }
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
+  
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
     tiempoSinConsumoRestante = currentMillis;
     long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoConConsumoRestante >= tiempo || currentMillis < tiempo){
+    if (currentMillis - tiempoConConsumoRestante > tiempo || currentMillis < tiempo){
       errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
     tiempoConConsumoRestante = currentMillis;
-    if (currentMillis - tiempoSinConsumoRestante < 30000 && currentMillis >= 30000){
+    if (currentMillis - tiempoSinConsumoRestante > 30000 && currentMillis > 30000){
       errorLimiteConsumo = true;  // si han pasado 30 segundos sin Potencia suficiente para cargar..
-      return true;                // activamos el error por Límite de Consumo.
+      return false;                // activamos el error por Límite de Consumo.
     }
   }
   return false;
@@ -1933,8 +1936,17 @@ void MonitorizarDatos(){
   Serial.println("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios);
   Serial.println("Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
   Serial.println("Generación FV Amperios ----> " + (String)generacionFVAmperios);
+  Serial.print("Conectado -----------------> "); if (conectado) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Cargando ------------------> "); if (cargando) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Carga Completa--- ---------> "); if (cargaCompleta) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Inicio Carga Activado -----> "); if (inicioCargaActivado) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
-  Serial.print("Permiso de Carga-----------> "); if (permisoCarga) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Petición Carga ------------> "); if (peticionCarga) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Permiso de Carga ----------> "); if (permisoCarga) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Hay Excedentes FV ---------> "); if (HayExcedentesFV) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Error Limite Consumo ------> "); if (errorLimiteConsumo) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Error Carga ---------------> "); if (errorCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
 }
 
