@@ -63,6 +63,8 @@ const unsigned char PS_32 = (1 << ADPS2) | (1 << ADPS0);
 const unsigned char PS_64 = (1 << ADPS2) | (1 << ADPS1);
 const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
+extern volatile unsigned long timer0_millis;
+
 void setup(){
   //    ---------Se establece el valor del prescaler----------------
   ADCSRA &= ~PS_128;  // Eliminamos la configuración de la librería Arduino
@@ -489,6 +491,7 @@ void loop(){
 
 // ******************* RUTINA DE INICIO DE CARGA ******************
 void IniciarCarga(){
+  resetMillis();
   watiosCargados = 0;
   cargaCompleta = false;
   inicioCargaActivado = true;
@@ -1831,19 +1834,15 @@ bool HayExcedentesFV(){
  
   //******************* CONTROL DE AUTORIZACIÓN CARGA FOTOVOLTAICA ******************
 bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
-  if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
-  if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
-  
   if (HayExcedentesFV()){                  // Si hay excedentes suficientes ....
     if (tiempoGeneraSuficiente == 0){
       tiempoNoGeneraSuficiente = 1;
       return true;
     }else if (tiempoGeneraSuficiente == 1){
       tiempoGeneraSuficiente = currentMillis;
-      tiempoNoGeneraSuficiente = 1;
-    }else if (currentMillis >= tiempoGeneraSuficiente + ((long)tiempoConGeneracion * 60000l)){
+    }else if (currentMillis >= tiempoGeneraSuficiente + ((unsigned long)tiempoConGeneracion * 60000l)){
       tiempoGeneraSuficiente = 0;
-      tiempoNoGeneraSuficiente = 1;
+      tiempoGeneraSuficiente = 1;
       return true;
     }
   }else{    // Si NO hay excedentes suficientes ....
@@ -1851,13 +1850,13 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       tiempoGeneraSuficiente = 1;
     }else if (tiempoNoGeneraSuficiente == 1){
       tiempoNoGeneraSuficiente = currentMillis;
-      tiempoGeneraSuficiente = 1;
-      return true;
-    }else if (currentMillis < tiempoNoGeneraSuficiente + ((long)tiempoSinGeneracion * 60000l)){
-      tiempoGeneraSuficiente = 1;
       return true;
     }else{
-      tiempoNoGeneraSuficiente == 0;
+      if (currentMillis < tiempoNoGeneraSuficiente + ((unsigned long)tiempoSinGeneracion * 60000l)) return true;
+      else {
+        tiempoNoGeneraSuficiente = 0;
+        tiempoGeneraSuficiente = 1;
+      }
     }
   }
   return false;
@@ -1905,7 +1904,7 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
     long tiempo = (long)tiempoConGeneracion * 60000l;
     if (currentMillis - tiempoSinConsumoRestante > tiempo || currentMillis < tiempo){
       tiempoConConsumoRestante = currentMillis;
-	  errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
+	    errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
@@ -1979,4 +1978,11 @@ void MonitorizarDatos(){
 
 bool AnnoBisiesto(unsigned int ano){
   return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
+}
+
+void resetMillis(){
+  uint8_t oldSREG = SREG;
+  cli();
+  timer0_millis = 0;
+  SREG = oldSREG;
 }
