@@ -173,7 +173,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.57 ****"));
+  lcd.print(F("**** V 1.57a ***"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -1826,7 +1826,7 @@ void CalcularEnergias(unsigned long currentMillis){
 	return (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
    }
    }else{
-   (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+   return (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
    }
   }
  
@@ -1836,9 +1836,11 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
   if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
   
   if (HayExcedentesFV()){                  // Si hay excedentes suficientes ....
-    tiempoGeneraSuficiente = currentMillis;
     long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo) return true;
+    if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo){
+	tiempoGeneraSuficiente = currentMillis;	
+	return true;
+	}
     }else{    // Si NO hay excedentes suficientes ....
     long tiempo = (long)tiempoSinGeneracion * 60000l;
     if (currentMillis - tiempoGeneraSuficiente < tiempo && currentMillis > tiempo) return true;
@@ -1886,10 +1888,10 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
-    tiempoConConsumoRestante = currentMillis;
     long tiempo = (long)tiempoConGeneracion * 60000l;
     if (currentMillis - tiempoSinConsumoRestante > tiempo || currentMillis < tiempo){
-      errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
+      tiempoConConsumoRestante = currentMillis;
+	  errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
