@@ -262,7 +262,6 @@ void loop(){
           EEPROM.write(14, horarioVerano);
         }
       }
-      
        
       //********************** CONTROL DE LA INFORMACIÓN DEL VEHÍCULO **********************
       if (tensionCargador < 550){
@@ -401,6 +400,7 @@ void loop(){
                     if (EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = FRANJAHORARIA;
                   }
                   if (tipoCargaInteligente == EXCEDENTESFV && !AutorizaCargaExcedentesFV(actualMillis)) permisoCarga = false;
+                  break;
                 case TARIFAVALLE:
                   if (!EnTarifaValle(horaNow)){
                     if (AutorizaCargaExcedentesFV(actualMillis))tipoCargaInteligente = EXCEDENTESFV;
@@ -1835,15 +1835,28 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
   if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
   
   if (HayExcedentesFV()){                  // Si hay excedentes suficientes ....
-    long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo){
-      tiempoGeneraSuficiente = currentMillis;	
+    if (tiempoGeneraSuficiente == 0){
+      tiempoNoGeneraSuficiente = 1;
+      return true;
+    }else if (tiempoGeneraSuficiente == 1){
+      tiempoGeneraSuficiente = currentMillis;
+      tiempoNoGeneraSuficiente = 1;
+    }else if (currentMillis - tiempoGeneraSuficiente > (long)tiempoConGeneracion * 60000l){
+      tiempoGeneraSuficiente = 0;
+      tiempoNoGeneraSuficiente = 1;
       return true;
     }
   }else{    // Si NO hay excedentes suficientes ....
-    long tiempo = (long)tiempoSinGeneracion * 60000l;
-    if (currentMillis - tiempoGeneraSuficiente < tiempo && currentMillis > tiempo) return true;
-    else tiempoNoGeneraSuficiente = currentMillis;
+    if (tiempoNoGeneraSuficiente == 0){
+      tiempoGeneraSuficiente = 1;
+    }else if (tiempoNoGeneraSuficiente == 1){
+      tiempoNoGeneraSuficiente = currentMillis;
+      tiempoGeneraSuficiente = 1;
+      return true;
+    }else if (currentMillis - tiempoNoGeneraSuficiente < (long)tiempoSinGeneracion * 60000l){
+      tiempoGeneraSuficiente = 1;
+      return true;
+    }
   }
   return false;
 }
