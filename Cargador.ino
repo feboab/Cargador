@@ -173,7 +173,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.57a ***"));
+  lcd.print(F("**** V 1.57b ***"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -1818,17 +1818,16 @@ void CalcularEnergias(unsigned long currentMillis){
 }
 
   //******************* CONTROL DE SI HAY EXCEDENTES FOTOVOLTAICOS ******************
- bool HayExcedentesFV(){
-   if (cargaPorExcedentes){
-	if (cargadorEnConsumoGeneral){
-	return (generacionFVAmperios - consumoGeneralAmperios - consumoCargadorAmperios >= generacionMinima);
+bool HayExcedentesFV(){
+  if (cargaPorExcedentes){
+    if (cargadorEnConsumoGeneral){
+      return (generacionFVAmperios - consumoGeneralAmperios - consumoCargadorAmperios >= generacionMinima);
     }else{
-	return (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
-   }
-   }else{
-   return (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
-   }
+      return (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
+    }
   }
+  return (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+}
  
   //******************* CONTROL DE AUTORIZACIÓN CARGA FOTOVOLTAICA ******************
 bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
@@ -1838,14 +1837,14 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
   if (HayExcedentesFV()){                  // Si hay excedentes suficientes ....
     long tiempo = (long)tiempoConGeneracion * 60000l;
     if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo){
-	tiempoGeneraSuficiente = currentMillis;	
-	return true;
-	}
-    }else{    // Si NO hay excedentes suficientes ....
+      tiempoGeneraSuficiente = currentMillis;	
+      return true;
+    }
+  }else{    // Si NO hay excedentes suficientes ....
     long tiempo = (long)tiempoSinGeneracion * 60000l;
     if (currentMillis - tiempoGeneraSuficiente < tiempo && currentMillis > tiempo) return true;
-    }
-  tiempoNoGeneraSuficiente = currentMillis;
+    else tiempoNoGeneraSuficiente = currentMillis;
+  }
   return false;
 }
 
