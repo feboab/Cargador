@@ -173,7 +173,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.56 ***"));
+  lcd.print(F("**** V 1.57 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -326,7 +326,7 @@ void loop(){
               puedeCargar = true;
               break;
             case EXCEDENTESFV:
-              if (HayExcedentesFV()){
+              if (AutorizaCargaExcedentesFV(actualMillis)){
                 puedeCargar = true;
               }else if (generacionFVAmperios < 2){
                 FinalizarCarga();
@@ -338,7 +338,7 @@ void loop(){
                   tipoCargaInteligente = TARIFAVALLE;
                   puedeCargar = true;
                 }else{
-                  if (HayExcedentesFV()){
+                  if (AutorizaCargaExcedentesFV(actualMillis)){
                     tipoCargaInteligente = EXCEDENTESFV;
                     puedeCargar = true;
                   }else tipoCargaInteligente = TARIFAVALLE;
@@ -348,7 +348,7 @@ void loop(){
                   tipoCargaInteligente = FRANJAHORARIA;
                   puedeCargar = true;
                 }else{
-                  if (HayExcedentesFV()){
+                  if (AutorizaCargaExcedentesFV(actualMillis)){
                     tipoCargaInteligente = EXCEDENTESFV;
                     puedeCargar = true;
                   }else tipoCargaInteligente = FRANJAHORARIA;
@@ -387,7 +387,7 @@ void loop(){
               if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
               break;
             case EXCEDENTESFV:
-              if (!HayExcedentesFV()){
+              if (!AutorizaCargaExcedentesFV(actualMillis)){
                 if (generacionFVAmperios < 2) FinalizarCarga();
                 else permisoCarga = false;
               }
@@ -400,17 +400,17 @@ void loop(){
                   }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
                     if (EnFranjaHoraria(horaNow, minutoNow)) tipoCargaInteligente = FRANJAHORARIA;
                   }
-                  if (tipoCargaInteligente == EXCEDENTESFV && !HayExcedentesFV()) permisoCarga = false;
+                  if (tipoCargaInteligente == EXCEDENTESFV && !AutorizaCargaExcedentesFV(actualMillis)) permisoCarga = false;
                 case TARIFAVALLE:
                   if (!EnTarifaValle(horaNow)){
-                    if (HayExcedentesFV())tipoCargaInteligente = EXCEDENTESFV;
+                    if (AutorizaCargaExcedentesFV(actualMillis))tipoCargaInteligente = EXCEDENTESFV;
                     else permisoCarga = false;
                   }
                   break;
                 case FRANJAHORARIA:
-                  if (!EnFranjaHoraria(horaNow, minutoNow) && !HayExcedentesFV()) permisoCarga = false;
+                  if (!EnFranjaHoraria(horaNow, minutoNow) && !AutorizaCargaExcedentesFV(actualMillis)) permisoCarga = false;
                   if (!EnFranjaHoraria(horaNow, minutoNow)){
-                    if (HayExcedentesFV())tipoCargaInteligente = EXCEDENTESFV;
+                    if (AutorizaCargaExcedentesFV(actualMillis))tipoCargaInteligente = EXCEDENTESFV;
                     else permisoCarga = false;
                   }
                   break;
@@ -1782,26 +1782,6 @@ bool EsHorarioVerano(DateTime fecha){
   return false;
 }
 
-//******************* CONTROL DE SI HAY EXCEDENTES FOTOVOLTAICOS ******************
-bool HayExcedentesFV(){
-  unsigned long currentMillis = millis();
-  if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
-  if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
-  
-  bool generacionSuficiente = (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
-  if (cargaPorExcedentes) generacionSuficiente = (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
-  if (generacionSuficiente){                  // Si hay excedentes suficientes ....
-    tiempoGeneraSuficiente = currentMillis;        // reseteamos el tiempo para el control de que no hay excedentes ....
-    long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo) return true;   // Si hay excedentes durante más de x minutos activamos la carga
-  } else{    // Si NO hay excedentes suficientes ....
-    tiempoNoGeneraSuficiente = currentMillis;   // reseteamos el tiempo para el control de que hay excedentes ....
-    long tiempo = (long)tiempoSinGeneracion * 60000l;
-    if (currentMillis - tiempoGeneraSuficiente < tiempo && currentMillis > tiempo) return true; // Si no hay excedentes,esperamos x minutos antes de desactivar la carga
-  }
-  return false;
-}
-
 //************** CONTROL DE SI ESTAMOS DENTRO DE LA TARIFA REDUCIDA *******************
 bool EnTarifaValle(int horaNow){
   return (horarioVerano && (horaNow >= 23 || horaNow < 13)) || (!horarioVerano && (horaNow >= 22 || horaNow < 12));
@@ -1826,7 +1806,7 @@ void CalcularEnergias(unsigned long currentMillis){
 
   unsigned long tiempoCalculoWatios = currentMillis - tiempoCalculoEnergiaCargada;  // Evaluamos el tiempo para el cálculo de watios cargados ....
   if (tiempoCalculoWatios > 12000) {                    // si llevamos más de 12 seg ....
-    tiempoCalculoEnergiaCargada = currentMillis;              // lo reseteamos
+    tiempoCalculoEnergiaCargada = currentMillis;        // lo reseteamos
     tiempoCalculoWatios = 0;
   }
   
@@ -1835,6 +1815,36 @@ void CalcularEnergias(unsigned long currentMillis){
     kwTotales = kwTotales + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));
     tiempoCalculoEnergiaCargada = currentMillis;  // Si no estamos cargando reseteamos el tiempo de cálculo de la energía cargada
   }
+}
+
+  //******************* CONTROL DE SI HAY EXCEDENTES FOTOVOLTAICOS ******************
+ bool HayExcedentesFV(){
+   if (cargaPorExcedentes){
+	if (cargadorEnConsumoGeneral){
+	return (generacionFVAmperios - consumoGeneralAmperios - consumoCargadorAmperios >= generacionMinima);
+    }else{
+	return (generacionFVAmperios - consumoGeneralAmperios >= generacionMinima);
+   }
+   }else{
+   (generacionFVAmperios >= generacionMinima);  // Verificamos si hay suficientes excedentes fotovoltaicos....
+   }
+  }
+ 
+  //******************* CONTROL DE AUTORIZACIÓN CARGA FOTOVOLTAICA ******************
+bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
+  if (tiempoGeneraSuficiente > currentMillis) tiempoGeneraSuficiente = currentMillis;
+  if (tiempoNoGeneraSuficiente > currentMillis) tiempoNoGeneraSuficiente = currentMillis;
+  
+  if (HayExcedentesFV()){                  // Si hay excedentes suficientes ....
+    tiempoGeneraSuficiente = currentMillis;
+    long tiempo = (long)tiempoConGeneracion * 60000l;
+    if (currentMillis - tiempoNoGeneraSuficiente > tiempo || currentMillis < tiempo) return true;
+    }else{    // Si NO hay excedentes suficientes ....
+    long tiempo = (long)tiempoSinGeneracion * 60000l;
+    if (currentMillis - tiempoGeneraSuficiente < tiempo && currentMillis > tiempo) return true;
+    }
+  tiempoNoGeneraSuficiente = currentMillis;
+  return false;
 }
 
 //******************* CONTROL DE LA POTENCIA DISPONIBLE EN LA VIVIENDA PARA CARGAR ************************
@@ -1883,13 +1893,13 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
-    tiempoSinConsumoRestante = currentMillis;
-    if (currentMillis - tiempoConConsumoRestante < 30000 && currentMillis > 30000){
+      if (currentMillis - tiempoConConsumoRestante < 30000 && currentMillis > 30000){
       errorLimiteConsumo = false;  // si no han pasado 30 segundos sin Potencia suficiente para cargar, seguimos cargando.
       return true;
     }
   }
   errorLimiteConsumo = true;
+  tiempoSinConsumoRestante = currentMillis;
   return false;
 }
 
@@ -1945,7 +1955,7 @@ void MonitorizarDatos(){
   Serial.print("Petición Carga ------------> "); if (peticionCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Permiso de Carga ----------> "); if (permisoCarga) Serial.println("SI"); else Serial.println("NO");
-  Serial.print("Hay Excedentes FV ---------> "); if (HayExcedentesFV) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Hay Excedentes FV ---------> "); if (HayExcedentesFV()) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Error Limite Consumo ------> "); if (errorLimiteConsumo) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Error Carga ---------------> "); if (errorCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
