@@ -1841,7 +1841,7 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
     }else if (tiempoGeneraSuficiente == 1){
       tiempoGeneraSuficiente = currentMillis;
       tiempoNoGeneraSuficiente = 1;
-    }else if (currentMillis - tiempoGeneraSuficiente > (long)tiempoConGeneracion * 60000l){
+    }else if (currentMillis >= tiempoGeneraSuficiente + ((long)tiempoConGeneracion * 60000l)){
       tiempoGeneraSuficiente = 0;
       tiempoNoGeneraSuficiente = 1;
       return true;
@@ -1853,9 +1853,11 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       tiempoNoGeneraSuficiente = currentMillis;
       tiempoGeneraSuficiente = 1;
       return true;
-    }else if (currentMillis - tiempoNoGeneraSuficiente < (long)tiempoSinGeneracion * 60000l){
+    }else if (currentMillis < tiempoNoGeneraSuficiente + ((long)tiempoSinGeneracion * 60000l)){
       tiempoGeneraSuficiente = 1;
       return true;
+    }else{
+      tiempoNoGeneraSuficiente == 0;
     }
   }
   return false;
