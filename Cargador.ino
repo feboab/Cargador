@@ -1842,7 +1842,7 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       tiempoGeneraSuficiente = currentMillis;
     }else if (currentMillis >= tiempoGeneraSuficiente + ((unsigned long)tiempoConGeneracion * 60000l)){
       tiempoGeneraSuficiente = 0;
-      tiempoGeneraSuficiente = 1;
+      tiempoNoGeneraSuficiente = 1;
       return true;
     }
   }else{    // Si NO hay excedentes suficientes ....
@@ -1908,7 +1908,7 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
       return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
     }
   }else{
-      if (currentMillis - tiempoConConsumoRestante < 30000 && currentMillis > 30000){
+    if (currentMillis - tiempoConConsumoRestante < 30000 && currentMillis > 30000){
       errorLimiteConsumo = false;  // si no han pasado 30 segundos sin Potencia suficiente para cargar, seguimos cargando.
       return true;
     }
