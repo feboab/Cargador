@@ -38,7 +38,7 @@ const int BOTONPROG = 3;
 volatile int volatileTension;
 byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
 byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
-bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false;
+bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, ControlPotencia = true;
 bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
 bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, errorLimiteConsumo = false;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
@@ -99,7 +99,8 @@ void setup(){
   apagarLCD = EEPROM.read(21);
   cargaPorExcedentes = EEPROM.read(22);
   bloquearCargador = EEPROM.read(23);
-	
+  ControlPotencia =  EEPROM.read(24);
+  
   lcd.begin(16, 2); //Inicialización de la Pantalla LCD
   lcd.createChar(1, enheM); //Creamos el nuevo carácter Ñ
   lcd.setBacklight(HIGH); //Encendemos la retoiluminación del display LCD
@@ -146,6 +147,8 @@ void setup(){
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
+	ControlPotencia = true;
+    EEPROM.write(24, ControlPotencia);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
     minutoInicioCarga = 0;
@@ -173,7 +176,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.58 ****"));
+  lcd.print(F("**** V 1.59 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -312,7 +315,7 @@ void loop(){
           luzLcd = true;
           tiempoUltimaPulsacionBoton = actualMillis;
         }
-      }
+}
       
       //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado && !errorCarga){
@@ -725,19 +728,23 @@ void ProcesarBoton(int button){
                 break;
               case 14:
                 enPantallaNumero = 124;
-                tempValorBool = apagarLCD;
+                tempValorBool = ControlPotencia;
                 break;
               case 15:
                 enPantallaNumero = 125;
+                tempValorBool = apagarLCD;
+                break;
+              case 16:
+                enPantallaNumero = 126;
                 tempValorBool = bloquearCargador;
                 break;
             }
             break;
           case BOTONMAS:
-            (opcionNumero >= 15) ? opcionNumero = 0 : opcionNumero++;
+            (opcionNumero >= 16) ? opcionNumero = 0 : opcionNumero++;
             break;
           case BOTONMENOS:
-            (opcionNumero <= 0) ? opcionNumero = 15 : opcionNumero--;
+            (opcionNumero <= 0) ? opcionNumero = 16 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 1;
@@ -1066,7 +1073,24 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break; 		
-	    case 124:   //Pantalla ajuste apagar LCD
+	    case 124:   //Pantalla Control de Potencia
+        switch (button){
+          case BOTONINICIO:
+            ControlPotencia = tempValorBool;
+            EEPROM.write(24, ControlPotencia);
+            enPantallaNumero = 11;
+            break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool = (tempValorBool) ? false : true;
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 11;
+            break;
+        }
+        updateScreen();
+        break; 		
+	    case 125:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
@@ -1083,7 +1107,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	    case 125:   //Pantalla Bloquear Cargador
+	    case 126:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
             bloquearCargador = tempValorBool;
@@ -1559,11 +1583,16 @@ void updateScreen(){
           lcd.print(F(" min"));
           break;
         case 14:
+          lcd.print(F("CTRL. POTENCIA: "));
+          lcd.setCursor(7, 1);
+          (ControlPotencia) ? lcd.print(F("SI")) : lcd.print(F("NO"));
+          break;   
+        case 15:
           lcd.print(F("APAGAR LCD:     "));
           lcd.setCursor(7, 1);
           (apagarLCD) ? lcd.print(F("SI")) : lcd.print(F("NO"));
           break;
-        case 15:
+        case 16:
           lcd.print(F("BLOQ. CARGADOR: "));
           lcd.setCursor(7, 1);
           (bloquearCargador) ? lcd.print(F("SI")) : lcd.print(F("NO"));
@@ -1845,7 +1874,7 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       return true;
     }else if (tiempoGeneraSuficiente == 1){
       tiempoGeneraSuficiente = currentMillis;
-    }else if (currentMillis - tiempoGeneraSuficiente >= (unsigned long)tiempoConGeneracion * 60000l){
+    }else if (currentMillis - tiempoGeneraSuficiente > (unsigned long)tiempoConGeneracion * 60000l){
       tiempoGeneraSuficiente = 0;
       tiempoNoGeneraSuficiente = 1;
       return true;
@@ -1857,7 +1886,7 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       tiempoNoGeneraSuficiente = currentMillis;
       return true;
     }else{
-      if (currentMillis - tiempoNoGeneraSuficiente >= (unsigned long)tiempoSinGeneracion * 60000l){
+      if (currentMillis - tiempoNoGeneraSuficiente > (unsigned long)tiempoSinGeneracion * 60000l){
         tiempoNoGeneraSuficiente = 0;
         tiempoGeneraSuficiente = 1;
       }else return true;
@@ -1868,6 +1897,7 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
 
 //******************* CONTROL DE LA POTENCIA DISPONIBLE EN LA VIVIENDA PARA CARGAR ************************
 bool HayPotenciaParaCargar(unsigned long currentMillis){
+  
   int IntensidadCalculadaCarga = IntensidadDisponible();
   bool puedeCargarPot = false;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){  //En los tipos de carga FV..
@@ -1901,6 +1931,11 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   }
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   
+  if (!ControlPotencia){
+	  return true;
+	  errorLimiteConsumo = false;
+  }
+	  
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
     if (tiempoConConsumoRestante == 0){
       tiempoSinConsumoRestante = 1;
@@ -1908,7 +1943,7 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
       return true;
     }else if (tiempoConConsumoRestante == 1){
       tiempoConConsumoRestante = currentMillis;
-    }else if (currentMillis - tiempoConConsumoRestante >= (unsigned long)tiempoConGeneracion * 60000l){
+    }else if (currentMillis - tiempoConConsumoRestante > (unsigned long)tiempoConGeneracion * 60000l){
       tiempoSinConsumoRestante = 1;
       tiempoConConsumoRestante = 0;
       errorLimiteConsumo = false;
@@ -1917,11 +1952,11 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   }else{
     if (tiempoSinConsumoRestante == 0){
       tiempoConConsumoRestante = 1;
-      errorLimiteConsumo = true;
+      errorLimiteConsumo = false; //true;
     }else if (tiempoSinConsumoRestante == 1){
       tiempoSinConsumoRestante = currentMillis;
       return true;
-    }else if (currentMillis - tiempoSinConsumoRestante >= 30000){
+    }else if (currentMillis - tiempoSinConsumoRestante > 30000){
       tiempoSinConsumoRestante = 0;
       tiempoConConsumoRestante = 1;
       errorLimiteConsumo = true;
@@ -1992,4 +2027,3 @@ void MonitorizarDatos(){
 bool AnnoBisiesto(unsigned int ano){
   return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
 }
-
