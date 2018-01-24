@@ -63,8 +63,6 @@ const unsigned char PS_32 = (1 << ADPS2) | (1 << ADPS0);
 const unsigned char PS_64 = (1 << ADPS2) | (1 << ADPS1);
 const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
 
-extern volatile unsigned long timer0_millis;
-
 void setup(){
   //    ---------Se establece el valor del prescaler----------------
   ADCSRA &= ~PS_128;  // Eliminamos la configuración de la librería Arduino
@@ -175,7 +173,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.57b ***"));
+  lcd.print(F("**** V 1.58 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -487,33 +485,6 @@ void loop(){
     MonitorizarDatos();
     ticksScreen = 0;
   }
-}
-
-// ******************* RUTINA DE INICIO DE CARGA ******************
-void IniciarCarga(){
-  resetMillis();
-  watiosCargados = 0;
-  cargaCompleta = false;
-  inicioCargaActivado = true;
-  bateriaCargada = false;
-  EEPROM.write(11, tipoCarga);
-  EEPROM.write(13, inicioCargaActivado);
-}
-
-// ******************* RUTINA DE FINALIZACIÓN DE CARGA ******************
-void FinalizarCarga(){
-  digitalWrite(pinAlimentacionCargador, LOW);
-  cargaCompleta = false;
-  if (watiosCargados > 0) cargaCompleta = true;
-  permisoCarga = false;
-  inicioCargaActivado = false;
-  tiempoInicioSesion = 0;
-  tiempoNoGeneraSuficiente = 0;
-  tiempoSinConsumoRestante = 0;
-  tiempoConConsumoRestante = 0;
-  errorLimiteConsumo = false;
-  EEPROM.write(13, inicioCargaActivado);
-  EEPROMWritelong(15, kwTotales);
 }
 
 // ******************* RUTINA DE PROCESAMIENTO DE LOS MENÚS ******************
@@ -1711,6 +1682,33 @@ void updateScreen(){
   }  
 }
 
+// ******************* RUTINA DE INICIO DE CARGA ******************
+void IniciarCarga(){
+  watiosCargados = 0;
+  cargaCompleta = false;
+  inicioCargaActivado = true;
+  bateriaCargada = false;
+  EEPROM.write(11, tipoCarga);
+  EEPROM.write(13, inicioCargaActivado);
+}
+
+// ******************* RUTINA DE FINALIZACIÓN DE CARGA ******************
+void FinalizarCarga(){
+  digitalWrite(pinAlimentacionCargador, LOW);
+  cargaCompleta = false;
+  if (watiosCargados > 0) cargaCompleta = true;
+  permisoCarga = false;
+  inicioCargaActivado = false;
+  tiempoInicioSesion = 0;
+  tiempoGeneraSuficiente = 0;
+  tiempoNoGeneraSuficiente = 0;
+  tiempoSinConsumoRestante = 0;
+  tiempoConConsumoRestante = 0;
+  errorLimiteConsumo = false;
+  EEPROM.write(13, inicioCargaActivado);
+  EEPROMWritelong(15, kwTotales);
+}
+
 void MostrarPantallaCarga(){
   if (tipoCarga == INTELIGENTE) MostrarTipoCarga();
   lcd.setCursor(0, 1);
@@ -1840,7 +1838,7 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       return true;
     }else if (tiempoGeneraSuficiente == 1){
       tiempoGeneraSuficiente = currentMillis;
-    }else if (currentMillis >= tiempoGeneraSuficiente + ((unsigned long)tiempoConGeneracion * 60000l)){
+    }else if (currentMillis - tiempoGeneraSuficiente >= (unsigned long)tiempoConGeneracion * 60000l){
       tiempoGeneraSuficiente = 0;
       tiempoNoGeneraSuficiente = 1;
       return true;
@@ -1852,11 +1850,10 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
       tiempoNoGeneraSuficiente = currentMillis;
       return true;
     }else{
-      if (currentMillis < tiempoNoGeneraSuficiente + ((unsigned long)tiempoSinGeneracion * 60000l)) return true;
-      else {
+      if (currentMillis - tiempoNoGeneraSuficiente >= (unsigned long)tiempoSinGeneracion * 60000l){
         tiempoNoGeneraSuficiente = 0;
         tiempoGeneraSuficiente = 1;
-      }
+      }else return true;
     }
   }
   return false;
@@ -1901,20 +1898,31 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
-    long tiempo = (long)tiempoConGeneracion * 60000l;
-    if (currentMillis - tiempoSinConsumoRestante > tiempo || currentMillis < tiempo){
+    if (tiempoConConsumoRestante == 0){
+      tiempoSinConsumoRestante = 1;
+      errorLimiteConsumo = false;
+      return true;
+    }else if (tiempoConConsumoRestante == 1){
       tiempoConConsumoRestante = currentMillis;
-	    errorLimiteConsumo = false;  // si ha pasado el tiempo prefijado (el mismo que para reanudación de carga FV)..
-      return true;                 // o acabamos de alimentar el cargador, reseteamos el error por límite de consumo.
-    }
-  }else{
-    if (currentMillis - tiempoConConsumoRestante < 30000 && currentMillis > 30000){
-      errorLimiteConsumo = false;  // si no han pasado 30 segundos sin Potencia suficiente para cargar, seguimos cargando.
+    }else if (currentMillis - tiempoConConsumoRestante >= (unsigned long)tiempoConGeneracion * 60000l){
+      tiempoSinConsumoRestante = 1;
+      tiempoConConsumoRestante = 0;
+      errorLimiteConsumo = false;
       return true;
     }
+  }else{
+    if (tiempoSinConsumoRestante == 0){
+      tiempoConConsumoRestante = 1;
+      errorLimiteConsumo = true;
+    }else if (tiempoSinConsumoRestante == 1){
+      tiempoSinConsumoRestante = currentMillis;
+      return true;
+    }else if (currentMillis - tiempoSinConsumoRestante >= 30000){
+      tiempoSinConsumoRestante = 0;
+      tiempoConConsumoRestante = 1;
+      errorLimiteConsumo = true;
+    }else return true;
   }
-  errorLimiteConsumo = true;
-  tiempoSinConsumoRestante = currentMillis;
   return false;
 }
 
@@ -1930,6 +1938,7 @@ int IntensidadDisponible(){
     }
   }
 }
+
 // ************** FUNCIÓN PARA ESCRIBIR UN DOBLE ENTERO EN MEMORIA ************
 void EEPROMWritelong(int address, long value){
   //Descomponemos un doble entero (long) en 4 bytes usando la función bitshift.
@@ -1980,9 +1989,3 @@ bool AnnoBisiesto(unsigned int ano){
   return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
 }
 
-void resetMillis(){
-  uint8_t oldSREG = SREG;
-  cli();
-  timer0_millis = 0;
-  SREG = oldSREG;
-}
