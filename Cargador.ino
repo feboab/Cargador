@@ -296,8 +296,15 @@ void loop(){
       }else if (!conectado && antesConectado){
         bateriaCargada = false;
         if (inicioCargaActivado) FinalizarCarga();
-        if (conFV && (conTarifaValle || (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga))) tipoCarga = INTELIGENTE;
-        else if (conTarifaValle)tipoCarga = TARIFAVALLE;
+        if (conFV){
+          if (conTarifaValle){
+            tipoCarga = INTELIGENTE;
+            tipoCargaInteligente = TARIFAVALLE;
+          }else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga){
+            tipoCarga = INTELIGENTE;
+            tipoCargaInteligente = FRANJAHORARIA;
+          }
+        }else if (conTarifaValle)tipoCarga = TARIFAVALLE;
         else if (horaInicioCarga != horaFinCarga || minutoInicioCarga != minutoFinCarga) tipoCarga = FRANJAHORARIA;
         antesConectado = false;
         if (!luzLcd){
@@ -1861,7 +1868,6 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
 
 //******************* CONTROL DE LA POTENCIA DISPONIBLE EN LA VIVIENDA PARA CARGAR ************************
 bool HayPotenciaParaCargar(unsigned long currentMillis){
-  
   int IntensidadCalculadaCarga = IntensidadDisponible();
   bool puedeCargarPot = false;
   if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){  //En los tipos de carga FV..
