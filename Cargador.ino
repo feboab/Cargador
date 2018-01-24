@@ -147,7 +147,7 @@ void setup(){
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
-	ControlPotencia = true;
+    ControlPotencia = true;
     EEPROM.write(24, ControlPotencia);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
@@ -1073,7 +1073,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break; 		
-	    case 124:   //Pantalla Control de Potencia
+      case 124:   //Pantalla Control de Potencia
         switch (button){
           case BOTONINICIO:
             ControlPotencia = tempValorBool;
@@ -1090,7 +1090,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break; 		
-	    case 125:   //Pantalla ajuste apagar LCD
+      case 125:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
@@ -1107,7 +1107,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-	    case 126:   //Pantalla Bloquear Cargador
+      case 126:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
             bloquearCargador = tempValorBool;
@@ -1932,8 +1932,8 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   
   if (!ControlPotencia){
+    errorLimiteConsumo = false;
 	  return true;
-	  errorLimiteConsumo = false;
   }
 	  
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
@@ -1952,7 +1952,7 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   }else{
     if (tiempoSinConsumoRestante == 0){
       tiempoConConsumoRestante = 1;
-      errorLimiteConsumo = false; //true;
+      errorLimiteConsumo = true; //deberia ser true. Si al empezar a cargar no tiene potencia disponible deberia dar error.
     }else if (tiempoSinConsumoRestante == 1){
       tiempoSinConsumoRestante = currentMillis;
       return true;
