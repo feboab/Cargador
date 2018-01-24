@@ -1861,8 +1861,6 @@ bool AutorizaCargaExcedentesFV(unsigned long currentMillis){
 
 //******************* CONTROL DE LA POTENCIA DISPONIBLE EN LA VIVIENDA PARA CARGAR ************************
 bool HayPotenciaParaCargar(unsigned long currentMillis){
-  if (tiempoConConsumoRestante > currentMillis) tiempoConConsumoRestante = currentMillis;
-  if (tiempoSinConsumoRestante > currentMillis) tiempoSinConsumoRestante = currentMillis;
   
   int IntensidadCalculadaCarga = IntensidadDisponible();
   bool puedeCargarPot = false;
