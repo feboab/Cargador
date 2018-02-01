@@ -147,7 +147,7 @@ void setup(){
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
-    ControlPotencia = true;
+	ControlPotencia = true;
     EEPROM.write(24, ControlPotencia);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
@@ -176,7 +176,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.59 ****"));
+  lcd.print(F("**** V 1.60 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -390,7 +390,7 @@ void loop(){
               if (!EnFranjaHoraria(horaNow, minutoNow)) FinalizarCarga();
               break;
             case ENERGIA:
-              if (watiosCargados >= (valorTipoCarga * 100l)) FinalizarCarga();
+              if (watiosCargados >= valorTipoCarga) FinalizarCarga();
               break;
             case TIEMPO:
               if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
@@ -1073,7 +1073,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break; 		
-      case 124:   //Pantalla Control de Potencia
+	    case 124:   //Pantalla Control de Potencia
         switch (button){
           case BOTONINICIO:
             ControlPotencia = tempValorBool;
@@ -1090,7 +1090,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break; 		
-      case 125:   //Pantalla ajuste apagar LCD
+	    case 125:   //Pantalla ajuste apagar LCD
         switch (button){
           case BOTONINICIO:
             apagarLCD = tempValorBool;
@@ -1107,7 +1107,7 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 126:   //Pantalla Bloquear Cargador
+	    case 126:   //Pantalla Bloquear Cargador
         switch (button){
           case BOTONINICIO:
             bloquearCargador = tempValorBool;
@@ -1284,9 +1284,16 @@ void updateScreen(){
         if (cargaCompleta){
           lcd.setCursor(0, 1);
           lcd.print(F("CARGADO "));
-          lcd.print(watiosCargados / 100);
-          lcd.print(F(" Wh    "));
-        }else if (inicioCargaActivado){
+		if (watiosCargados < 1000){
+          lcd.print(watiosCargados);
+          lcd.print(F(" Wh  ")); // Hasta 1 KWh cargados mostramos los watios hora
+        }else{
+          float kWhCargados = (float (watiosCargados) / 1000);
+          lcd.print(kWhCargados,2);
+          lcd.setCursor(12,1);
+          lcd.print(F(" kWh")); // A partir de 1 KWh cargado mostramos los kilowatios hora
+         }
+		}else if (inicioCargaActivado){
           if (errorCarga){
             lcd.setCursor(0, 1);
             lcd.print(F("ERROR DE CARGA. "));
@@ -1752,12 +1759,19 @@ void MostrarPantallaCarga(){
   if (consumoCargadorAmperios < 10)lcd.print(F(" "));
   lcd.print(consumoCargadorAmperios);
   lcd.print(F("A "));
-  if (watiosCargados < 10000l){
-  lcd.print(watiosCargados / 100);
-  lcd.print(F("Wh   ")); // Hasta 10KWh cargados mostramos los watios hora
-  }else{
-  lcd.print(watiosCargados / 100000l);
-  lcd.print(F("kWh  ")); // A partir de 10KWh cargados mostramos los kilowatios hora
+  if (watiosCargados < 999){ // Hasta 1 KWh cargados mostramos los watios hora
+  lcd.print(watiosCargados);
+  lcd.print(F("Wh   "));
+  }else{ // A partir de 1 KWh cargado mostramos los kilowatios hora
+   float kWhCargados = (float (watiosCargados) / 1000);
+   lcd.print(kWhCargados,1);
+   if (watiosCargados < 9999) { // Por debajo de 10kWh mostramos 1 decimal
+   lcd.setCursor(13,1);	  
+   lcd.print(F("kWh"));
+   }else{ // Por encima de 10 kWh no mostramos decimales
+    lcd.setCursor(12,1);	  
+    lcd.print(F("kWh "));
+   }
   }	
 }
 
@@ -1848,7 +1862,7 @@ void CalcularEnergias(unsigned long currentMillis){
   }
   
   if (tiempoCalculoWatios > 3000) {                   // Si llevamos más de 3 seg vamos sumando ...
-    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
+    watiosCargados = watiosCargados + (((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios)) / 100);  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
     kwTotales = kwTotales + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));
     tiempoCalculoEnergiaCargada = currentMillis;  // Si no estamos cargando reseteamos el tiempo de cálculo de la energía cargada
   }
@@ -1932,8 +1946,9 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   if (duracionPulso < 72) duracionPulso = 72;   // Si la duración del pulso resultante es menor de 72(6A) lo ponemos a 6 A.
   
   if (!ControlPotencia){
-    errorLimiteConsumo = false;
-	  return true;
+    errorLimiteConsumo = false;	  
+    return true;
+	  
   }
 	  
   if (puedeCargarPot){  // Control de los tiempos de disparo y reset del límite de consumo
@@ -1952,7 +1967,7 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   }else{
     if (tiempoSinConsumoRestante == 0){
       tiempoConConsumoRestante = 1;
-      errorLimiteConsumo = true; //deberia ser true. Si al empezar a cargar no tiene potencia disponible deberia dar error.
+      errorLimiteConsumo = true;
     }else if (tiempoSinConsumoRestante == 1){
       tiempoSinConsumoRestante = currentMillis;
       return true;
