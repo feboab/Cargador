@@ -5,6 +5,7 @@
 #include <EEPROM.h>
 
 LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Configuramos la pantalla con la dirección 3F
+//LiquidCrystal_I2C lcd(0x3f, 16, 2);
 
 //              DEFINICIÓN PINES ENTRADAS ANALOGICAS
 const int pinGeneracionFV = 0;      // define el pin 0 como 'Generación FV'
@@ -26,8 +27,10 @@ const int FRANJAHORARIA = 1;
 const int INMEDIATA = 2;
 const int ENERGIA = 3;
 const int TIEMPO = 4;
-const int EXCEDENTESFV = 5;
-const int INTELIGENTE = 6;
+const int CONSIGNA = 5;
+const int EXCEDENTESFV = 6;
+const int INTELIGENTE = 7;
+
 
 const int BOTONINICIO = 0;
 const int BOTONMAS = 1;
@@ -41,7 +44,7 @@ byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPant
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, ControlPotencia = true;
 bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
 bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, errorLimiteConsumo = false;
-bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false;
+bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, cambioCarga = false;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
@@ -147,7 +150,7 @@ void setup(){
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
-	ControlPotencia = true;
+	  ControlPotencia = true;
     EEPROM.write(24, ControlPotencia);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
@@ -176,7 +179,7 @@ void setup(){
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.60 ****"));
+  lcd.print(F("**** V 1.61 ****"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -315,7 +318,7 @@ void loop(){
           luzLcd = true;
           tiempoUltimaPulsacionBoton = actualMillis;
         }
-}
+      }
       
       //*******************   GESTIÓN DE LOS TIPOS DE CARGA   *******************
       if (conectado && inicioCargaActivado && !errorCarga){
@@ -333,6 +336,9 @@ void loop(){
             case TIEMPO:
             case INMEDIATA:
               puedeCargar = true;
+              break;
+            case CONSIGNA:
+              if (generacionFVAmperios > 6) puedeCargar = true;
               break;
             case EXCEDENTESFV:
               if (AutorizaCargaExcedentesFV(actualMillis)){
@@ -378,7 +384,7 @@ void loop(){
             permisoCarga = false;
             digitalWrite(pinAlimentacionCargador, LOW);
           }
-         }
+        }
                 //****************  DURANTE LA CARGA  ***************  
         else if (cargando){
           CalcularEnergias(actualMillis);
@@ -394,6 +400,9 @@ void loop(){
               break;
             case TIEMPO:
               if ((actualMillis - tiempoInicioSesion) >= (valorTipoCarga * 60000l)) FinalizarCarga();
+              break;
+            case CONSIGNA:
+              if (generacionFVAmperios < 5) permisoCarga = false;
               break;
             case EXCEDENTESFV:
               if (!AutorizaCargaExcedentesFV(actualMillis)){
@@ -506,7 +515,7 @@ void ProcesarBoton(int button){
         switch (button){
           case BOTONINICIO:
             if (inicioCargaActivado){
-              tempValorBool = false;
+              opcionNumero = 0;
               enPantallaNumero = 4;
             }else{
               enPantallaNumero = 2;
@@ -585,6 +594,11 @@ void ProcesarBoton(int button){
                 IniciarCarga();
                 enPantallaNumero = 0;
                 break;
+              case CONSIGNA:
+                tipoCarga = CONSIGNA;
+                IniciarCarga();
+                enPantallaNumero = 0;
+                break;
               case EXCEDENTESFV:
                 tipoCarga = EXCEDENTESFV;
                 IniciarCarga();
@@ -598,13 +612,15 @@ void ProcesarBoton(int button){
             }
             break;
           case BOTONMAS:
-            ((!conSensorGeneral && opcionNumero >= 4) || opcionNumero >= 6) ? opcionNumero = 0 : opcionNumero++;
+            ((!conSensorGeneral && opcionNumero >= 4) || opcionNumero >= 7) ? opcionNumero = 0 : opcionNumero++; // PREGUNTAR
             break;
           case BOTONMENOS:
-            ((!conSensorGeneral && opcionNumero <= 0) || opcionNumero <= 0) ? opcionNumero = 4 : opcionNumero--;
+            (opcionNumero <= 0) ? (!conSensorGeneral) ? opcionNumero = 4 : opcionNumero = 7 : opcionNumero--; // PREGUNTAR
+            //((!conSensorGeneral && opcionNumero <= 0) || opcionNumero <= 0) ? opcionNumero = 4 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
+            cambioCarga = false;
             break;
         }
         updateScreen();
@@ -628,15 +644,23 @@ void ProcesarBoton(int button){
         }
         updateScreen();
         break;
-      case 4:   //Pantalla finalización carga
+      case 4:    //Pantalla opcion: fin carga ó cambiar carga
         switch (button){
           case BOTONINICIO:
-            if (tempValorBool) FinalizarCarga();
-            enPantallaNumero = 0;
+            if (opcionNumero == 0){
+              enPantallaNumero = 30;
+              tempValorBool = false;
+            }else{
+              enPantallaNumero = 2;
+              opcionNumero = tipoCarga;
+              cambioCarga = true;
+            }
             break;
           case BOTONMAS:
+            (opcionNumero >= 1) ? opcionNumero = 0 : opcionNumero++;
+            break;
           case BOTONMENOS:
-            tempValorBool  = (tempValorBool) ? false : true;
+            (opcionNumero <= 0) ? opcionNumero = 1 : opcionNumero--;
             break;
           case BOTONPROG:
             enPantallaNumero = 0;
@@ -791,6 +815,22 @@ void ProcesarBoton(int button){
             break;
           case BOTONPROG:
             enPantallaNumero = 2;
+            break;
+        }
+        updateScreen();
+        break;
+      case 30:   //Pantalla finalización carga
+        switch (button){
+          case BOTONINICIO:
+            if (tempValorBool) FinalizarCarga();
+            enPantallaNumero = 0;
+            break;
+          case BOTONMAS:
+          case BOTONMENOS:
+            tempValorBool  = (tempValorBool) ? false : true;
+            break;
+          case BOTONPROG:
+            enPantallaNumero = 0;
             break;
         }
         updateScreen();
@@ -1313,6 +1353,10 @@ void updateScreen(){
                 lcd.setCursor(0, 1);
                 lcd.print(F("GEN. FV INSUFIC."));
                 break;
+              case CONSIGNA:
+                lcd.setCursor(0, 1);
+                lcd.print(F("CONSIGNA INSUFIC."));
+                break;
               case INTELIGENTE:
                 lcd.setCursor(0, 1);
                 lcd.print(F("INI.CARG:"));
@@ -1394,6 +1438,9 @@ void updateScreen(){
         case INMEDIATA:
           lcd.print(F("INMEDIATA"));
           break;
+        case CONSIGNA:
+          lcd.print(F("CONSIGNA EXT."));
+          break;
         case EXCEDENTESFV:
           lcd.print(F("EXCEDENTES FV"));
           break;
@@ -1414,9 +1461,9 @@ void updateScreen(){
     case 4:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("FINALIZAR CARGA:"));
+      lcd.print(F("SELECCIONA OPCION:"));
       lcd.setCursor(7, 1);
-      (tempValorBool) ? lcd.print(F("SI")) : lcd.print(F("NO"));
+      (opcionNumero == 0) ? lcd.print(F("FINALIZAR CARGA")) : lcd.print(F("CAMBIAR CARGA"));
       break;
     case 10:
       lcd.setCursor(0, 0);
@@ -1624,6 +1671,13 @@ void updateScreen(){
       lcd.print(tempValorInt);
       lcd.print(F(" MIN"));
       break;
+    case 30:
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print(F("FINALIZAR CARGA:"));
+      lcd.setCursor(7, 1);
+      (tempValorBool) ? lcd.print(F("SI")) : lcd.print(F("NO"));
+      break;
     case 100:
       lcd.clear();
       lcd.setCursor(0, 0);
@@ -1727,12 +1781,15 @@ void updateScreen(){
 
 // ******************* RUTINA DE INICIO DE CARGA ******************
 void IniciarCarga(){
-  watiosCargados = 0;
-  cargaCompleta = false;
-  inicioCargaActivado = true;
-  bateriaCargada = false;
+  if (!cambioCarga){
+    watiosCargados = 0;
+    cargaCompleta = false;
+    inicioCargaActivado = true;
+    bateriaCargada = false;
+    EEPROM.write(13, inicioCargaActivado);
+    cambioCarga = false;
+  }else cambioCarga = false;
   EEPROM.write(11, tipoCarga);
-  EEPROM.write(13, inicioCargaActivado);
 }
 
 // ******************* RUTINA DE FINALIZACIÓN DE CARGA ******************
