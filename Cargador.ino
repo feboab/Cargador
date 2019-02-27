@@ -4,8 +4,8 @@
 #include <LiquidCrystal_I2C.h>
 #include <EEPROM.h>
 
-LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Configuramos la pantalla con la dirección 3F
-//LiquidCrystal_I2C lcd(0x3f, 16, 2);
+LiquidCrystal_I2C lcd( 0x3f, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE ); //Configuramos la pantalla con la dirección 3f
+
 
 //              DEFINICIÓN PINES ENTRADAS ANALOGICAS
 const int pinGeneracionFV = 0;      // define el pin 0 como 'Generación FV'
@@ -39,7 +39,7 @@ const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
-byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
+byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, valorTipoCarga = 0;
 byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, ControlPotencia = true;
 bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
@@ -48,7 +48,7 @@ bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
 int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
-unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0, valorTipoCarga = 0;
+unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
 unsigned long tiempoErrorCarga = 0, tiempoSinConsumoRestante = 0, tiempoConConsumoRestante = 0;
 
@@ -121,7 +121,7 @@ void setup(){
     while (1);
   }
   
-  if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da valores nó válidos, así que se asignan valores predeterminados
+  /*if (horaInicioCarga > 23) {    //Si es la primera vez que se ejecuta el programa, la lectura de la Eeprom da valores nó válidos, así que se asignan valores predeterminados
     horaInicioCarga = 0;
     EEPROM.write(0, horaInicioCarga);
     cargadorEnConsumoGeneral = true;
@@ -150,7 +150,7 @@ void setup(){
     EEPROM.write(22, cargaPorExcedentes);
     bloquearCargador = false;
     EEPROM.write(23, bloquearCargador);
-	  ControlPotencia = true;
+	ControlPotencia = true;
     EEPROM.write(24, ControlPotencia);
     generacionMinima = 2;
     EEPROM.write(8, generacionMinima);
@@ -172,14 +172,14 @@ void setup(){
     EEPROM.write(17, 0);
     EEPROM.write(18, 0);
   }
-  
+  */
   Timer1.initialize(1000);         // Temporizador que activa un nuevo ciclo de onda (1000 hz)
   Timer1.attachInterrupt(GenPulsos); // Activa la interrupcion y la asocia a la rutina GenPulsos
   
   lcd.setCursor(0, 0);
   lcd.print(F("    WALLBOX     "));
   lcd.setCursor(0, 1);
-  lcd.print(F("**** V 1.61 ****"));
+  lcd.print(F("*** V1.61 ***"));
   delay(1500);
   
   //************** ACTIVAMOS EL MODO DE CARGA POR DEFECTO ***************
@@ -338,7 +338,7 @@ void loop(){
               puedeCargar = true;
               break;
             case CONSIGNA:
-              if (generacionFVAmperios > 6) puedeCargar = true;
+              if (generacionFVAmperios > 5) puedeCargar = true;
               break;
             case EXCEDENTESFV:
               if (AutorizaCargaExcedentesFV(actualMillis)){
@@ -1461,9 +1461,9 @@ void updateScreen(){
     case 4:
       lcd.clear();
       lcd.setCursor(0, 0);
-      lcd.print(F("SELECCIONA OPCION:"));
-      lcd.setCursor(7, 1);
-      (opcionNumero == 0) ? lcd.print(F("FINALIZAR CARGA")) : lcd.print(F("CAMBIAR CARGA"));
+      lcd.print(F("SELEC. OPCION:"));
+      lcd.setCursor(0, 1);
+      (opcionNumero == 0) ? lcd.print(F("FINALIZAR CARGA")) : lcd.print(F("CAMBIAR T. CARGA"));
       break;
     case 10:
       lcd.setCursor(0, 0);
@@ -1476,7 +1476,7 @@ void updateScreen(){
           lcd.print(F(" KWh          "));
           break;
         case 1:
-          lcd.print(F("AUTORIZ. CARGA: "));
+          lcd.print(F("CARGA INICIADA: "));
           lcd.setCursor(0, 1);
           (inicioCargaActivado) ? lcd.print(F("       SI       ")) : lcd.print(F("       NO       "));
           break;
@@ -1857,6 +1857,9 @@ void MostrarTipoCarga(){
     case INMEDIATA:
       lcd.print(F("TC:    INMEDIATA"));
       break;
+	case CONSIGNA:
+      lcd.print(F("TC: CONSIG. EXT."));
+      break;  
     case ENERGIA:
       lcd.print(F("TC:      ENERGIA"));
       break;
@@ -1919,7 +1922,7 @@ void CalcularEnergias(unsigned long currentMillis){
   }
   
   if (tiempoCalculoWatios > 3000) {                   // Si llevamos más de 3 seg vamos sumando ...
-    watiosCargados = watiosCargados + (((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios)) / 100);  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
+    watiosCargados = watiosCargados + ((consumoCargadorAmperios * 240) / (3600000l / tiempoCalculoWatios));  // Lo normal seria 230, pero en mi caso tengo la tensión muy alta ....
     kwTotales = kwTotales + ((consumoCargadorAmperios * 24000l) / (3600000l / tiempoCalculoWatios));
     tiempoCalculoEnergiaCargada = currentMillis;  // Si no estamos cargando reseteamos el tiempo de cálculo de la energía cargada
   }
@@ -1971,7 +1974,7 @@ bool HayPotenciaParaCargar(unsigned long currentMillis){
   
   int IntensidadCalculadaCarga = IntensidadDisponible();
   bool puedeCargarPot = false;
-  if (tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){  //En los tipos de carga FV..
+  if (tipoCarga == CONSIGNA || tipoCarga == EXCEDENTESFV || (tipoCarga == INTELIGENTE && tipoCargaInteligente == EXCEDENTESFV)){  //En los tipos de carga FV..
     if (conSensorGeneral && cargaPorExcedentes){     //Si tenemos sensor general y la carga FV es por excedentes..
       duracionPulso = ((generacionFVAmperios - consumoGeneralAmperios) * 100 / 6) - 28;  // Calculamos restanto el consumo a la generación.. 
       puedeCargarPot = true;
@@ -2077,25 +2080,26 @@ long EEPROMReadlong(long address){       // Función que permite leer un dato de
 }
 
 void MonitorizarDatos(){
-  Serial.println("Tensión Cargador(Media) ---> " + (String)tensionCargador);
+  Serial.println("Version de Programa -------> 1.61");
+  Serial.println("Tension Cargador(Media) ---> " + (String)tensionCargador);
   Serial.println("Consumo General Amperios --> " + (String)consumoGeneralAmperios);
   Serial.println("Consumo Cargador Amperios -> " + (String)consumoCargadorAmperios);
   Serial.println("Media Intensidad Cargador -> " + (String)mediaIntensidadCargador);
-  Serial.println("Generación FV Amperios ----> " + (String)generacionFVAmperios);
+  Serial.println("Generacion FV Amperios ----> " + (String)generacionFVAmperios);
   Serial.print("Conectado -----------------> "); if (conectado) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Cargando ------------------> "); if (cargando) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Carga Completa--- ---------> "); if (cargaCompleta) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Inicio Carga Activado -----> "); if (inicioCargaActivado) Serial.println("SI"); else Serial.println("NO");
-  Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
-  Serial.print("Petición Carga ------------> "); if (peticionCarga) Serial.println("SI"); else Serial.println("NO");
-  Serial.print("Batería Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Peticion Carga ------------> "); if (peticionCarga) Serial.println("SI"); else Serial.println("NO");
+  Serial.print("Bateria Cargada -----------> "); if (bateriaCargada) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Permiso de Carga ----------> "); if (permisoCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Hay Excedentes FV ---------> "); if (HayExcedentesFV()) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Error Limite Consumo ------> "); if (errorLimiteConsumo) Serial.println("SI"); else Serial.println("NO");
   Serial.print("Error Carga ---------------> "); if (errorCarga) Serial.println("SI"); else Serial.println("NO");
   Serial.println("Duracion del pulso --------> " + (String)duracionPulso);
-}
+  }
 
 bool AnnoBisiesto(unsigned int ano){
   return ano % 4 == 0 && (ano % 100 !=0 || ano % 400 == 0);
 }
+
