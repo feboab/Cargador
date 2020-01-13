@@ -39,14 +39,14 @@ const int BOTONPROG = 3;
 
 //              DEFINICION VARIABLES GLOBALES
 volatile int volatileTension;
-byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0, valorTipoCarga = 0;
+byte horaInicioCarga = 0, minutoInicioCarga = 0, intensidadProgramada = 6, consumoTotalMax = 32, horaFinCarga = 0, minutoFinCarga = 0, generacionMinima = 5, tipoCarga = 0, tipoCargaInteligente = 0;
 byte tiempoSinGeneracion = 0, tiempoConGeneracion = 0, lastCheckHour = 0, enPantallaNumero = 0, opcionNumero = 0, nuevaHora = 0, nuevoMinuto = 0, nuevoMes = 0, nuevoDia = 0, codigoDesbloqueo = 0;
 bool cargadorEnConsumoGeneral = true, conSensorGeneral = true, conFV = true, cargaPorExcedentes = true, apagarLCD = true, bloquearCargador = false, pantallaBloqueada = false, ControlPotencia = true;
 bool bateriaCargada = 0, permisoCarga = false, antesConectado = false, conectado = false, cargando = false, peticionCarga = false, cargaCompleta = false;
 bool inicioCargaActivado = false, conTarifaValle = true, tempValorBool = false, errorCarga = false, luzLcd = true, horarioVerano = true, actualizarDatos = false, errorLimiteConsumo = false;
 bool flancoBotonInicio = false, flancoBotonMas = false, flancoBotonMenos = false, flancoBotonProg = false, cambioCarga = false;
 int duracionPulso = 0, tensionCargador = 0, numCiclos = 0, nuevoAnno = 0, tempValorInt = 0, ticksScreen = 0;
-int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral;
+int mediaIntensidadCargador, mediaIntensidadFV, mediaIntensidadGeneral, valorTipoCarga = 0;
 int consumoCargadorAmperios = 0, generacionFVAmperios = 0, consumoGeneralAmperios = 0;
 unsigned long kwTotales = 0, tempWatiosCargados = 0, watiosCargados = 0, acumTensionCargador = 0, acumIntensidadCargador = 0, acumIntensidadGeneral = 0, acumIntensidadFV = 0;
 unsigned long tiempoInicioSesion = 0, tiempoCalculoEnergiaCargada = 0, tiempoGeneraSuficiente = 0, tiempoNoGeneraSuficiente = 0, tiempoUltimaPulsacionBoton = 0, tiempoOffBoton = 0;
@@ -65,6 +65,12 @@ const unsigned char PS_16 = (1 << ADPS2);
 const unsigned char PS_32 = (1 << ADPS2) | (1 << ADPS0);
 const unsigned char PS_64 = (1 << ADPS2) | (1 << ADPS1);
 const unsigned char PS_128 = (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+
+typedef union
+{
+  int intValue;
+  byte byteValue[2];
+} Integer;
 
 void setup(){
   //    ---------Se establece el valor del prescaler----------------
@@ -93,7 +99,7 @@ void setup(){
   conFV = EEPROM.read(9);
   conTarifaValle = EEPROM.read(10);
   tipoCarga = EEPROM.read(11);
-  valorTipoCarga = EEPROM.read(12);
+  valorTipoCarga = EEPROMReadInt(25) // Este dato ocupa 2 Bytes, direcciones 25 y 26.
   inicioCargaActivado = EEPROM.read(13);
   horarioVerano = EEPROM.read(14);
   kwTotales = EEPROMReadlong(15); // Este dato ocupa 4 Bytes, direcciones 15, 16, 17 y 18.
@@ -783,7 +789,7 @@ void ProcesarBoton(int button){
             tipoCarga = ENERGIA;
             valorTipoCarga = tempValorInt;
             IniciarCarga();
-            EEPROM.write(12, valorTipoCarga);
+			EEPROMWriteInt(25, valorTipoCarga)
             enPantallaNumero = 0;
             break;
           case BOTONMAS:
@@ -804,7 +810,7 @@ void ProcesarBoton(int button){
             tipoCarga = TIEMPO;
             valorTipoCarga = tempValorInt;
             IniciarCarga();
-            EEPROM.write(12, valorTipoCarga);
+            EEPROM.write(25, valorTipoCarga);
             enPantallaNumero = 0;
             break;
           case BOTONMAS:
@@ -2069,7 +2075,7 @@ void EEPROMWritelong(int address, long value){
   EEPROM.write(address + 3, one);
 }
 
-long EEPROMReadlong(long address){       // Función que permite leer un dato de tipo doble entero (long) de la eeprom partiendo de 4 Bytes
+long EEPROMReadlong(int address){       // Función que permite leer un dato de tipo doble entero (long) de la eeprom partiendo de 4 Bytes
   long four = EEPROM.read(address);
   long three = EEPROM.read(address + 1);
   long two = EEPROM.read(address + 2);
@@ -2077,6 +2083,21 @@ long EEPROMReadlong(long address){       // Función que permite leer un dato de
 
   //Devuelve el long adecuando (desplazando) los datos antes de sumarlos.
   return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
+}
+
+int EEPROMReadInt(int address){
+  Integer intTemp = 0;
+  intTemp.byteValue[0] = EEPROM.read(address);
+  intTemp.byteValue[1] = EEPROM.read(address + 1); 
+  return intTemp.intValue; 
+}
+
+void EEPROMWriteInt(int address, int value){
+  Integer intTemp;
+  intTemp.intValue = val;
+
+  EEPROM.write(address, intTemp.byteValue[0]);
+  EEPROM.write(address + 1, intTemp.byteValue[1]);
 }
 
 void MonitorizarDatos(){
